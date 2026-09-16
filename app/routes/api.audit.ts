@@ -355,6 +355,40 @@ async function callAnthropic(apiKey: string, userPrompt: string) {
   return data.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
 }
 
+// NVIDIA NIM API (supports GLM-5, GLM-4, and OpenAI-compatible models)
+// Uses NVIDIA's OpenAI-compatible endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+async function callNvidia(apiKey: string, userPrompt: string) {
+  const model = process.env.NVIDIA_MODEL || process.env.GLM_MODEL || 'zhipuai/glm-5'
+  const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 16384,
+      response_format: { type: 'json_object' },
+    }),
+  })
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '')
+    throw new Response(
+      JSON.stringify({ error: `NVIDIA API error ${response.status} (${model}): ${errText.slice(0, 300)}` }),
+      { status: response.status, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const data = await response.json()
+  return data.choices?.[0]?.message?.content || ''
+}
+
 // ── Solodit corroboration ──────────────────────────────────────────────────
 // Solodit indexes 50k+ real audit-contest findings. We run ONE search per
 // audit (its free tier caps at 20 req/window) using risk-pattern keywords
@@ -543,14 +577,13 @@ export async function action({ request }: Route.ActionArgs) {
     // connector sets by default, so a mis-cased env var doesn't silently drop the provider.
     const geminiKey = process.env.GEMINI_API_KEY || process.env.gemini
     const anthropicKey = process.env.ANTHROPIC_API_KEY
-    if (!geminiKey && !anthropicKey) {
-      return Response.json({ error: 'No LLM provider configured — set GEMINI_API_KEY (or the Vercel connector\'s `gemini`) or ANTHROPIC_API_KEY' }, { status: 500 })
+    const nvidiaKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_KEY
+
+    if (!geminiKey && !anthropicKey && !nvidiaKey) {
+      return Response.json({ error: 'No LLM provider configured — set NVIDIA_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY' }, { status: 500 })
     }
 
-    // Gemini (primary) and Anthropic (fallback) both have large context and no tight per-minute
-    // token ceiling, so both get the full uncondensed SYSTEM_PROMPT and the generous code /
-    // corroboration budgets. (Groq was removed — its 12k TPM cap and condensed prompt produced
-    // weak PoCs and 429 rate-limit failures.)
+    // Gemini, NVIDIA (GLM-5.2 / GLM-5), and Anthropic all support large context and generous output budgets.
     const MAX_CHARS = 14000
     const SOLODIT_LIMIT = 6
     const truncated = code.length > MAX_CHARS
@@ -607,9 +640,9 @@ export async function action({ request }: Route.ActionArgs) {
 
     const userPrompt = `Analyze this smart contract file (${filename || 'unknown'}) and return the JSON object only:\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}`
 
-    // Try Gemini first, then Anthropic. Real cascade: if the primary throws (rate limit,
-    // network, API error) and a fallback is configured, try the fallback rather than hard-fail.
+    // Cascade: prioritize NVIDIA (GLM 5.2) if configured, then Gemini, then Anthropic.
     const providers: Array<{ name: string; run: () => Promise<string> }> = []
+    if (nvidiaKey) providers.push({ name: 'NVIDIA', run: () => callNvidia(nvidiaKey, userPrompt) })
     if (geminiKey) providers.push({ name: 'Gemini', run: () => callGemini(geminiKey, userPrompt) })
     if (anthropicKey) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey, userPrompt) })
 
