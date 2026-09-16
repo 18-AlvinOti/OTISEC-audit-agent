@@ -1,0 +1,243 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ══════════════════════════════════════════════════════
+     NAVY PALETTE — dark blue → light blue gradient body,
+     Cream + Blue→Tan / Brown→Beige / Teal→Tan accents
+     ══════════════════════════════════════════════════════ */
+
+  /* ── Cream (warm neutral anchor) */
+  --cream:        #EFEBDD;
+  --cream-dim:    #D6D0AE;
+  --cream-dusk:   #B8B090;
+  --cream-shadow: rgba(239,235,221,0.08);
+
+  /* ── Teal → Tan gradient scale (brand primary) */
+  --teal-50:  #EFEBDD;   /* tan / cream tip     */
+  --teal-100: #C8CDA8;   /* sage-tan            */
+  --teal-200: #8ABFAB;   /* mid teal-tan        */
+  --teal-400: #2E9E82;   /* deep teal           */
+  --teal-600: #1B7060;   /* dark teal           */
+  --teal-800: #0F4A40;   /* ink teal            */
+  --teal-900: #082E27;   /* near-black teal     */
+
+  /* ── Blue → Tan gradient scale */
+  --blue-tan-100: #D9DCCC;  /* pale blue-grey tan   */
+  --blue-tan-200: #9DAFC0;  /* slate-blue           */
+  --blue-tan-400: #4E7FA3;  /* mid steel-blue       */
+  --blue-tan-600: #2E5572;  /* deep navy-blue       */
+  --blue-tan-900: #0E2030;  /* near-black navy      */
+
+  /* ── Brown → Beige gradient scale */
+  --brown-50:  #EDE8D8;   /* lightest beige      */
+  --brown-100: #D4C9A8;   /* warm sand           */
+  --brown-200: #B8A07A;   /* tan-brown           */
+  --brown-400: #8A6848;   /* warm brown          */
+  --brown-600: #5E4030;   /* deep brown          */
+  --brown-900: #2A1A10;   /* ink brown           */
+
+  /* ── Legacy accent aliases (updated to new palette) */
+  --teal:     #2E9E82;
+  --teal-d:   #1B7060;
+  --teal-bg:  rgba(46,158,130,0.10);
+  --teal-xd:  #082E27;
+  --coral:    #C4623A;
+  --coral-bg: rgba(196,98,58,0.10);
+  --amber:    #B8893A;
+  --amber-bg: rgba(184,137,58,0.10);
+  --red:      #A0362A;
+  --red-bg:   rgba(160,54,42,0.10);
+  --blue:     #4E7FA3;
+  --blue-bg:  rgba(78,127,163,0.10);
+  --purple:   #7060A8;
+  --purple-bg: rgba(112,96,168,0.10);
+
+  /* ── Body gradient — dark navy → lighter sky-blue mix */
+  --bg-gradient:
+    radial-gradient(1200px circle at 12% -15%, rgba(96,165,250,0.28), transparent 55%),
+    radial-gradient(900px circle at 115% 10%, rgba(191,219,254,0.14), transparent 55%),
+    linear-gradient(180deg, #060B18 0%, #0E2140 42%, #1E4976 78%, #2E6AA6 100%);
+
+  /* ── Dark navy surfaces */
+  --bg-body:       var(--bg-gradient);
+  --bg-app:        var(--bg-gradient);
+  --bg-nav:        #08132A;
+  --bg-tabs:       #0A1830;
+  --bg-sidebar:    #071026;
+  --surface-card:  #0D1E3B;
+  --surface-track: #102544;
+
+  /* Gradient fills used across cards / hero */
+  --grad-teal-tan:    linear-gradient(135deg, #2E9E82 0%, #8ABFAB 45%, #EFEBDD 100%);
+  --grad-blue-tan:    linear-gradient(135deg, #2E5572 0%, #4E7FA3 45%, #D9DCCC 100%);
+  --grad-brown-beige: linear-gradient(135deg, #5E4030 0%, #8A6848 45%, #EDE8D8 100%);
+  --grad-cream-glow:  radial-gradient(ellipse at top, rgba(239,235,221,0.06) 0%, transparent 70%);
+
+  /* ── Text (warm whites → cream tints) */
+  --text-body:         #EDE8D8;
+  --text-strong:       rgba(237,232,216,0.95);
+  --text-1:            rgba(237,232,216,0.85);
+  --text-2:            rgba(237,232,216,0.72);
+  --text-3:            rgba(237,232,216,0.58);
+  --text-4:            rgba(237,232,216,0.45);
+  --text-muted:        rgba(237,232,216,0.35);
+  --text-faint:        rgba(237,232,216,0.22);
+  --text-teal-heading: #C8CDA8;
+  --text-teal-sub:     #1B7060;
+
+  /* ── Borders (warm tint) */
+  --border-1:           rgba(239,235,221,0.18);
+  --border-2:           rgba(239,235,221,0.12);
+  --border-3:           rgba(239,235,221,0.08);
+  --border-4:           rgba(239,235,221,0.05);
+  --border-teal:        rgba(46,158,130,0.35);
+  --border-teal-strong: rgba(27,112,96,0.5);
+
+  /* ── Fills */
+  --fill-1:    rgba(239,235,221,0.06);
+  --fill-2:    rgba(239,235,221,0.03);
+  --fill-code: rgba(0,0,0,0.35);
+  --fill-teal: rgba(8,46,39,0.45);
+
+  /* ── Severity (recalibrated to warm palette) */
+  --sev-critical-bg:     rgba(120,30,25,0.40);
+  --sev-critical-text:   #F2A89A;
+  --sev-critical-border: rgba(150,35,30,0.55);
+  --sev-high-bg:         rgba(140,80,20,0.38);
+  --sev-high-text:       #F2C07A;
+  --sev-high-border:     rgba(160,95,25,0.55);
+  --sev-medium-bg:       rgba(120,90,15,0.38);
+  --sev-medium-text:     #EDD44A;
+  --sev-medium-border:   rgba(140,105,18,0.55);
+  --sev-low-bg:          rgba(25,60,120,0.38);
+  --sev-low-text:        #8AB8E8;
+  --sev-low-border:      rgba(30,70,140,0.55);
+  --sev-info-bg:         rgba(30,28,22,0.65);
+  --sev-info-text:       #B8B090;
+  --sev-info-border:     rgba(55,52,40,0.65);
+
+  /* ── Stat number colors */
+  --stat-critical: #F2A89A;
+  --stat-high:     #F2C07A;
+  --stat-medium:   #EDD44A;
+  --stat-low:      #8AB8E8;
+
+  /* ── Tag tints */
+  --tag-teal-bg:      rgba(8,46,39,0.45);
+  --tag-teal-text:    #8ABFAB;
+  --tag-teal-border:  rgba(27,112,96,0.40);
+  --tag-purple-bg:    rgba(60,40,100,0.40);
+  --tag-purple-text:  #C8B8E8;
+  --tag-purple-border:rgba(90,60,140,0.40);
+  --tag-amber-bg:     rgba(80,50,10,0.40);
+  --tag-amber-text:   #EDD07A;
+  --tag-amber-border: rgba(110,72,14,0.40);
+
+  /* ── Brand mark */
+  --brand-gold:     #D4A84B;
+  --brand-charcoal: #1C1A10;
+
+  /* ── Type */
+  --font-sans: 'Syne', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+  --text-nano:    8px;
+  --text-micro:   9px;
+  --text-tiny:    10px;
+  --text-label:   11px;
+  --text-code:    11px;
+  --text-xs:      12px;
+  --text-sm:      14px;
+  --text-base:    16px;
+  --text-xl:      20px;
+  --text-2xl:     24px;
+  --tracking-wider:  0.05em;
+  --tracking-widest: 0.1em;
+  --leading-relaxed: 1.625;
+
+  /* ── Radii & spacing */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-full: 9999px;
+  --sidebar-w:   224px;
+  --nav-py:      12px;
+  --nav-px:      20px;
+  --content-pad: 20px;
+}
+
+/* ── Reset */
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Syne', sans-serif;
+  background: var(--bg-body);
+  color: var(--text-body);
+  min-height: 100vh;
+}
+
+.font-mono { font-family: 'Space Mono', monospace; }
+
+/* ── Scrollbar */
+::-webkit-scrollbar         { width: 4px; height: 4px; }
+::-webkit-scrollbar-track   { background: var(--surface-track); }
+::-webkit-scrollbar-thumb   { background: var(--teal-400); border-radius: 2px; }
+
+/* ── Dropzone pulse — teal→tan shimmer */
+@keyframes borderPulse {
+  0%, 100% { border-color: #2E9E82; }
+  50%       { border-color: #C8CDA8; }
+}
+.drop-active { animation: borderPulse 1.4s ease-in-out infinite; }
+
+/* ── Findings fade-in */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeInUp 0.25s ease forwards; }
+
+/* ── Progress bar — teal→tan shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.progress-shimmer {
+  background: linear-gradient(90deg, #2E9E82 20%, #C8CDA8 50%, #2E9E82 80%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite;
+}
+
+/* ── Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { animation: spin 0.7s linear infinite; display: inline-block; }
+
+/* ── Live-status pulse (hero eyebrow badge dot) */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+/* ── Ambient cream glow (used behind hero sections) */
+.cream-glow-bg {
+  background: var(--grad-cream-glow);
+}
+
+/* ── Gradient badge utilities */
+.badge-teal-tan {
+  background: linear-gradient(90deg, rgba(46,158,130,0.15), rgba(239,235,221,0.08));
+  border: 1px solid rgba(200,205,168,0.20);
+  color: var(--cream-dim);
+}
+.badge-blue-tan {
+  background: linear-gradient(90deg, rgba(46,85,114,0.20), rgba(217,220,204,0.08));
+  border: 1px solid rgba(157,175,192,0.20);
+  color: #9DAFC0;
+}
+.badge-brown-beige {
+  background: linear-gradient(90deg, rgba(94,64,48,0.25), rgba(237,232,216,0.08));
+  border: 1px solid rgba(184,160,122,0.22);
+  color: var(--brown-200);
+}
