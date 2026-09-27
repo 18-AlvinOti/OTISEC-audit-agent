@@ -677,7 +677,7 @@ export async function action({ request }: Route.ActionArgs) {
 
     const userPrompt = `Analyze this smart contract file (${filename || 'unknown'}) and return the JSON object only:\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}`
 
-    // Cascade: prioritize NVIDIA (GLM 5.2) if configured, then Gemini, then Anthropic.
+    // Cascade: prioritize NVIDIA (z-ai/glm-5.3-flash) if configured, then Gemini, then Anthropic.
     const providers: Array<{ name: string; run: () => Promise<string> }> = []
     if (nvidiaKey) providers.push({ name: 'NVIDIA', run: () => callNvidia(nvidiaKey, userPrompt) })
     if (geminiKey) providers.push({ name: 'Gemini', run: () => callGemini(geminiKey, userPrompt) })
