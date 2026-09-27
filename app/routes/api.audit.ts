@@ -719,11 +719,15 @@ export async function action({ request }: Route.ActionArgs) {
   await requireAuthApi(request)
 
   try {
-    const { code, filename } = await request.json()
+    const { code, filename, readme } = await request.json()
 
     if (!code || typeof code !== 'string') {
       return Response.json({ error: 'No code provided' }, { status: 400 })
     }
+
+    const readmeContext = readme && typeof readme === 'string' && readme.trim()
+      ? `\n\n════════════════════════════════════\nREADME & ARCHITECTURE GUIDANCE (Use this protocol documentation to understand system invariants, intended behavior, admin roles, and scope focus):\n════════════════════════════════════\n${readme.trim().slice(0, 20_000)}`
+      : ''
 
     // Accept both the canonical name and the lowercase `gemini` that Vercel's Gemini
     // connector sets by default, so a mis-cased env var doesn't silently drop the provider.
@@ -795,7 +799,7 @@ export async function action({ request }: Route.ActionArgs) {
           .join('\n')}`
       : ''
 
-    const userPrompt = `Analyze this smart contract file (${filename || 'unknown'}) and return the JSON object only:\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}`
+    const userPrompt = `Analyze this codebase / smart contract (${filename || 'unknown'}) and return the JSON object only:${readmeContext}\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}`
 
     // Cascade: prioritize NVIDIA (z-ai/glm-5.3-flash) if configured, then Gemini, then Anthropic.
     const providers: Array<{ name: string; run: () => Promise<string> }> = []

@@ -20,7 +20,76 @@ import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'
 import { PastReportsList } from '@/components/PastReportsList'
 import { ExportButtons } from '@/components/ExportButtons'
+import JSZip from 'jszip'
 import type { Route } from './+types/home'
+
+async function processUploadedFiles(rawFiles: File[]): Promise<{ codeFiles: File[]; readmeText: string }> {
+  const codeFiles: File[] = []
+  let readmeText = ''
+
+  const SUPPORTED_EXTS = new Set([
+    'sol', 'rs', 'go', 'move', 'vy', 'cairo', 'ts', 'js', 'py', 'c', 'cpp', 'h', 'hpp', 'txt'
+  ])
+
+  for (const rawFile of rawFiles) {
+    const nameLower = rawFile.name.toLowerCase()
+
+    // 1. Unpack ZIP Archives
+    if (nameLower.endsWith('.zip')) {
+      try {
+        const zip = await JSZip.loadAsync(rawFile)
+        for (const relativePath of Object.keys(zip.files)) {
+          const zipEntry = zip.files[relativePath]
+          if (zipEntry.dir) continue
+
+          // Skip hidden directories and system files
+          if (
+            relativePath.includes('/.git/') ||
+            relativePath.includes('/node_modules/') ||
+            relativePath.includes('/target/') ||
+            relativePath.includes('/build/') ||
+            relativePath.startsWith('__MACOSX/') ||
+            relativePath.includes('/.DS_Store')
+          ) {
+            continue
+          }
+
+          const baseName = relativePath.split('/').pop() || ''
+          const baseNameLower = baseName.toLowerCase()
+          const ext = baseNameLower.split('.').pop() || ''
+
+          // Ingest README inside zip
+          if (baseNameLower === 'readme.md' || baseNameLower === 'readme.txt' || baseNameLower === 'readme') {
+            const content = await zipEntry.async('string')
+            readmeText += `\n\n--- [ZIP README: ${relativePath}] ---\n${content}`
+            continue
+          }
+
+          // Ingest supported code files inside zip
+          if (SUPPORTED_EXTS.has(ext)) {
+            const blob = await zipEntry.async('blob')
+            const zipFile = new File([blob], relativePath, { type: 'text/plain' })
+            codeFiles.push(zipFile)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to unpack zip file:', err)
+      }
+      continue
+    }
+
+    // 2. Handle Standalone Files & READMEs
+    const ext = nameLower.split('.').pop() || ''
+    if (nameLower === 'readme.md' || nameLower === 'readme.txt' || nameLower === 'readme' || nameLower.startsWith('readme')) {
+      const txt = await rawFile.text()
+      readmeText += `\n\n--- [README: ${rawFile.name}] ---\n${txt}`
+    } else if (SUPPORTED_EXTS.has(ext) || ext === 'md') {
+      codeFiles.push(rawFile)
+    }
+  }
+
+  return { codeFiles, readmeText: readmeText.trim() }
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request)
@@ -90,16 +159,26 @@ export default function Home() {
   const [openAaveSecs, setOpenAaveSecs] = useState<Record<number, boolean>>({})
   const findingsRef = useRef<HTMLDivElement>(null)
 
-  const onDrop = useCallback((accepted: File[]) => {
+  const [readmeText, setReadmeText] = useState<string>('')
+  const [showReadmePreview, setShowReadmePreview] = useState<boolean>(false)
+
+  const onDrop = useCallback(async (accepted: File[]) => {
+    const { codeFiles, readmeText: extractedReadme } = await processUploadedFiles(accepted)
     setFiles(prev => {
       const names = new Set(prev.map(f => f.name))
-      return [...prev, ...accepted.filter(f => !names.has(f.name))]
+      return [...prev, ...codeFiles.filter(f => !names.has(f.name))]
     })
+    if (extractedReadme) {
+      setReadmeText(prev => (prev ? `${prev}\n\n${extractedReadme}` : extractedReadme))
+    }
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'text/plain': ['.sol', '.move', '.vy', '.rs', '.txt'] },
+    accept: {
+      'application/zip': ['.zip'],
+      'text/plain': ['.sol', '.rs', '.go', '.move', '.vy', '.cairo', '.ts', '.js', '.py', '.txt', '.md']
+    },
     multiple: true,
   })
 
@@ -117,7 +196,7 @@ export default function Home() {
     if (running) return
     const targetProto = demoProto || proto
     const isDemo = !files.length || !!demoProto
-    if (demoProto) { setProto(demoProto); setFiles([]) }
+    if (demoProto) { setProto(demoProto); setFiles([]); setReadmeText('') }
 
     setRunning(true)
     setHasRun(true)
@@ -148,7 +227,11 @@ export default function Home() {
             const res = await fetch('/api/audit', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: combinedCode, filename: files.map(f => f.name).join(', ') }),
+              body: JSON.stringify({
+                code: combinedCode,
+                filename: files.map(f => f.name).join(', '),
+                readme: readmeText,
+              }),
             })
 
             const data = await res.json()
@@ -554,15 +637,39 @@ export default function Home() {
                     rootProps={getRootProps()}
                     inputProps={getInputProps()}
                     active={isDragActive}
-                    title={files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} ready` : 'Drop .sol  .vy  .move  .rs  or click to browse'}
+                    title={files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} extracted & ready` : 'Drop .zip archive or .sol  .rs  .go  .move  .vy files'}
                   />
 
+                  {readmeText && (
+                    <div style={{ marginTop: '12px', background: 'rgba(46,158,130,0.10)', border: '1px solid rgba(46,158,130,0.30)', borderRadius: '10px', padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '13px' }}>📘</span>
+                          <span style={{ fontFamily: 'Space Mono, monospace', fontSize: '10px', color: '#8ABFAB', fontWeight: 600 }}>
+                            README Guidance Ingested ({readmeText.split(/\s+/).length} words)
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setShowReadmePreview(!showReadmePreview)}
+                          style={{ fontFamily: 'Space Mono, monospace', fontSize: '9px', color: '#2E9E82', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                        >
+                          {showReadmePreview ? 'Hide Preview' : 'View Guidance'}
+                        </button>
+                      </div>
+                      {showReadmePreview && (
+                        <pre style={{ marginTop: '8px', maxHeight: '140px', overflowY: 'auto', fontFamily: 'Space Mono, monospace', fontSize: '9px', color: 'rgba(239,235,221,0.7)', whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '6px' }}>
+                          {readmeText.slice(0, 1500)}...
+                        </pre>
+                      )}
+                    </div>
+                  )}
+
                   {files.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px', marginTop: '14px', maxHeight: '96px', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px', marginTop: '14px', maxHeight: '120px', overflowY: 'auto' }}>
                       {files.map((f, i) => (
                         <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(239,235,221,0.04)', border: '1px solid rgba(239,235,221,0.08)', borderRadius: '8px', padding: '4px 10px' }}>
                           <span style={{ fontFamily: 'Space Mono, monospace', fontSize: '8px', color: '#8ABFAB' }}>.{f.name.split('.').pop()}</span>
-                          <span style={{ fontSize: '10px', color: 'rgba(237,232,216,0.60)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                          <span style={{ fontSize: '10px', color: 'rgba(237,232,216,0.60)', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                           <button onClick={() => removeFile(i)} style={{ color: 'rgba(255,255,255,0.25)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
                             <Icon name="x" size={10} />
                           </button>
