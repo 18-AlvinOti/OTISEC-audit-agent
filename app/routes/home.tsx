@@ -162,8 +162,9 @@ export default function Home() {
   const [readmeText, setReadmeText] = useState<string>('')
   const [showReadmePreview, setShowReadmePreview] = useState<boolean>(false)
 
-  const onDrop = useCallback(async (accepted: File[]) => {
-    const { codeFiles, readmeText: extractedReadme } = await processUploadedFiles(accepted)
+  const onDrop = useCallback(async (accepted: File[], fileRejections: any[]) => {
+    const allDroppedFiles = [...accepted, ...fileRejections.map(r => r.file)]
+    const { codeFiles, readmeText: extractedReadme } = await processUploadedFiles(allDroppedFiles)
     setFiles(prev => {
       const names = new Set(prev.map(f => f.name))
       return [...prev, ...codeFiles.filter(f => !names.has(f.name))]
@@ -177,7 +178,13 @@ export default function Home() {
     onDrop,
     accept: {
       'application/zip': ['.zip'],
-      'text/plain': ['.sol', '.rs', '.go', '.move', '.vy', '.cairo', '.ts', '.js', '.py', '.txt', '.md']
+      'application/x-zip-compressed': ['.zip'],
+      'application/x-zip': ['.zip'],
+      'application/octet-stream': ['.zip'],
+      'application/zip-compressed': ['.zip'],
+      'text/plain': ['.sol', '.rs', '.go', '.move', '.vy', '.cairo', '.ts', '.js', '.py', '.txt', '.md', '.json'],
+      'text/markdown': ['.md'],
+      'text/x-solidity': ['.sol'],
     },
     multiple: true,
   })
