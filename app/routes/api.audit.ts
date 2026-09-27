@@ -224,9 +224,12 @@ OUTPUT — REPORT FORMAT (every CONFIRMED finding uses this exact structure, in 
 
 Analyze the EXACT code provided — every finding and lead must reference real function/variable names from it. Do not invent or return generic/demo findings. If nothing survives the gates, return an empty findings array plus one INFO-severity finding summarizing what was analyzed (confidence 100).
 
-Return ONLY a raw JSON object. No markdown fences around the JSON itself, no prose outside the JSON — but the field VALUES inside it are markdown STRINGS as described above. Every one of summary/rootCause/symmetry/externalPreconditions/internalPreconditions/attackPath/impact/poc/mitigation MUST be a single JSON string (using \n for line breaks and markdown list syntax like "1. " or "- " inside that string) — NEVER a JSON array or nested object.
+AUTOMATIC PROTOCOL CLASSIFICATION:
+You MUST automatically determine the protocol category by inspecting imports, state variables, inheritance, and core functions. Classify it into one of: "Lending & Borrowing Vault", "Automated Market Maker (AMM)", "Cross-Chain Bridge / Messaging", "Yield Aggregator / Staking", "Perpetual Derivatives / Synthetic Assets", "Governance DAO", or "NFT / Gaming Marketplace". Include this string in the "protocolType" field.
+
 Schema:
 {
+  "protocolType": "Lending & Borrowing Vault | Automated Market Maker (AMM) | Cross-Chain Bridge / Messaging | Yield Aggregator / Staking | Perpetual Derivatives | Governance DAO | NFT / Gaming Marketplace",
   "findings": [{"sev":"CRITICAL|HIGH|MEDIUM|LOW|INFO","id":"CRIT-01","title":"...","summary":"markdown, inline \`code\` refs mandatory","rootCause":"markdown, inline \`code\` refs mandatory","symmetry":"markdown, OMIT this key entirely if not applicable","externalPreconditions":"markdown bullet list","internalPreconditions":"markdown bullet list","attackPath":"markdown numbered list","impact":"markdown","poc":"markdown: fenced runnable PoC + expected log output","mitigation":"markdown","prob":["ONLY from this exact list, pick 1-2 that genuinely apply, else []: Markov Chain, Bayesian Inference, Poisson Process, Log-Normal, Beta Distribution, Game Theory, Monte Carlo, Copula Models, Weibull Distribution, Exponential, Normal / Gaussian, Pareto / Power Law, Geometric, Binomial, Queueing Theory, Kalman Filter (tag this ONLY when Part 3's compounding-drift check is what actually surfaced or corroborated the finding), Hidden Markov Model (tag this ONLY when Part 3B's regime classification or a risky-to-risky call-graph transition is what actually surfaced or corroborated the finding)"],"aave":["Aave checklist sections violated, if applicable, else []"],"swc":["SWC-XXX if applicable, else []"],"immunefi":["0-2 entries ONLY when a Part 4 Immunefi-calibrated signature genuinely matches, formatted exactly as \\"Protocol — pattern (bounty)\\", else []"],"confidence":0,"lens":"which of the 12 attack-surface lenses this came from, e.g. Access control, Trust gap"}],
   "leads": [{"title":"concise title","codeSmells":"what you found, e.g. missing guard, unsafe arithmetic","description":"1-2 sentences on the trail and what remains unverified"}]
 }
@@ -271,6 +274,7 @@ async function callGemini(apiKey: string, userPrompt: string) {
                 responseSchema: {
                   type: 'OBJECT',
                   properties: {
+                    protocolType: { type: 'STRING' },
                     findings: {
                       type: 'ARRAY',
                       items: {
@@ -317,7 +321,7 @@ async function callGemini(apiKey: string, userPrompt: string) {
                       },
                     },
                   },
-                  required: ['findings', 'leads'],
+                  required: ['protocolType', 'findings', 'leads'],
                 },
               },
             }),
@@ -903,6 +907,7 @@ export async function action({ request }: Route.ActionArgs) {
     })
 
     return Response.json({
+      protocolType: (parsed as any)?.protocolType || 'Smart Contract Protocol',
       findings: normalizedFindings,
       leads: Array.isArray(leads) ? leads : [],
       soloditRefs,

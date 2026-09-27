@@ -245,6 +245,9 @@ export default function Home() {
               liveFindingsResult = data.findings
               liveLeadsResult = Array.isArray(data.leads) ? data.leads : []
               liveSoloditResult = Array.isArray(data.soloditRefs) ? data.soloditRefs : []
+              if (data.protocolType) {
+                setDetectedProtocol(data.protocolType)
+              }
             }
           } catch (err: unknown) {
             setApiError(`Network error: ${err instanceof Error ? err.message : 'Unknown'}`)
@@ -415,20 +418,17 @@ export default function Home() {
               </Button>
             </SbSection>
 
-            <div className="border-t border-white/8" />
-
-            <SbSection label="Protocol Type">
-              {PROTOS.map(p => (
-                <button key={p.k} onClick={() => setProto(p.k)}
-                  className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-[11px] transition-colors text-left
-                    ${proto === p.k ? 'bg-teal-900/40 text-teal-300' : 'text-white/50 hover:bg-white/5 hover:text-white/70'}`}>
-                  <span className="text-sm">{p.icon}</span>
-                  {p.label}
-                </button>
-              ))}
-            </SbSection>
-
-            <div className="border-t border-white/8" />
+            {detectedProtocol && (
+              <>
+                <SbSection label="Detected Protocol">
+                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-teal-900/30 border border-teal-500/20 text-teal-300 text-[11px] font-mono">
+                    <span>🏷️</span>
+                    <span className="truncate">{detectedProtocol}</span>
+                  </div>
+                </SbSection>
+                <div className="border-t border-white/8" />
+              </>
+            )}
 
             <SbSection label="Findings">
               {findings.length === 0
@@ -605,31 +605,7 @@ export default function Home() {
                   boxShadow: '0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(239,235,221,0.04) inset',
                 }}>
                   <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '9px', color: '#8ABFAB', textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: '18px', textAlign: 'center' }}>
-                    SELECT PROTOCOL · DROP FILES · LAUNCH
-                  </div>
-
-                  {/* Protocol Selector */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px', marginBottom: '20px' }}>
-                    {PROTOS.map(p => (
-                      <button
-                        key={p.k}
-                        onClick={() => setProto(p.k)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '6px',
-                          padding: '6px 14px',
-                          borderRadius: '8px',
-                          fontFamily: 'Space Mono, monospace',
-                          fontSize: '10px',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s',
-                          background: proto === p.k ? 'linear-gradient(90deg, rgba(46,158,130,0.15), rgba(200,205,168,0.08))' : 'transparent',
-                          border: proto === p.k ? '1px solid rgba(200,205,168,0.28)' : '1px solid rgba(239,235,221,0.07)',
-                          color: proto === p.k ? '#C8CDA8' : 'rgba(239,235,221,0.38)',
-                        }}
-                      >
-                        <span>{p.icon}</span>{p.label}
-                      </button>
-                    ))}
+                    DROP FILES OR ZIP ARCHIVE · AUTOMATIC PROTOCOL DISCOVERY · LAUNCH
                   </div>
 
                   <Dropzone
