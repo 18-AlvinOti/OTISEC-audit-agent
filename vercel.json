@@ -1,10 +1,5 @@
 {
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install",
-  "functions": {
-    "app/routes/api.audit.ts": {
-      "maxDuration": 300
-    }
-  }
+  "installCommand": "npm install"
 }
