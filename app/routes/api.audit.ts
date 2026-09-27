@@ -156,11 +156,11 @@ Four invariant categories — for each, ask whether this code violates it:
 1. Conservation: sum-of-parts = tracked-whole for every aggregate variable (e.g., Σ balances[user] == totalSupply, Σ deposits - Σ withdrawals == reserve). A function that changes a mapping entry without updating the corresponding total is a conservation violation.
 2. Round-trip: for every deposit/withdraw pair, a user who deposits X and immediately withdraws should receive ≤ X back (fees acceptable) but NEVER > X. state_before == state_after for a zero-value round-trip.
 3. Monotonicity/bounds: certain values should only move in one direction (e.g., totalDebt only increases per borrow call, never decreases without a repay call; a position's collateral ratio should never exceed the LTV cap after a valid operation).
-4. Access-isolation: unprivileged callers should never be able to alter privileged state (e.g., an arbitrary address should never be able to change `owner`, mint tokens, or bypass a `nonReentrant` guard).
+4. Access-isolation: unprivileged callers should never be able to alter privileged state (e.g., an arbitrary address should never be able to change \`owner\`, mint tokens, or bypass a \`nonReentrant\` guard).
 
-For each CONFIRMED finding, emit a `fizzProperties` array in the finding JSON: a list of 1-3 Echidna/Medusa-compatible Solidity one-liners (function signatures + boolean expression) that would catch the bug if violated. Format each as a string:
-`"function echidna_<name>() external view returns (bool) { return <invariant expression>; }"`
-Ensure the function name starts with `echidna_` and the body is a pure boolean expression (no reverts, no external calls that mutate state). If an invariant requires stateful tracking (ghost variables), describe the ghost variable in a comment above the function. Emit an empty array if no clean invariant can be expressed without deep protocol-specific scaffolding.
+For each CONFIRMED finding, emit a \`fizzProperties\` array in the finding JSON: a list of 1-3 Echidna/Medusa-compatible Solidity one-liners (function signatures + boolean expression) that would catch the bug if violated. Format each as a string:
+\`"function echidna_<name>() external view returns (bool) { return <invariant expression>; }"\`
+Ensure the function name starts with \`echidna_\` and the body is a pure boolean expression (no reverts, no external calls that mutate state). If an invariant requires stateful tracking (ghost variables), describe the ghost variable in a comment above the function. Emit an empty array if no clean invariant can be expressed without deep protocol-specific scaffolding.
 
 ════════════════════════════════════
 PART 6 — VALIDATION GATES (every candidate finding must pass all four, in order; stop at first failure)
@@ -241,10 +241,15 @@ Maximum 4 findings ordered by confidence descending, maximum 4 leads. Every find
 // so the budget is generous to leave room for a full findings JSON after the reasoning pass.
 async function callGemini(apiKey: string, userPrompt: string) {
   const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'x-goog-api-key': apiKey,
@@ -312,6 +317,7 @@ async function callGemini(apiKey: string, userPrompt: string) {
   )
 
   if (!response.ok) {
+    clearTimeout(timeout)
     const errText = await response.text().catch(() => '')
     throw new Response(
       JSON.stringify({ error: `Gemini API error ${response.status}: ${errText.slice(0, 300)}` }),
@@ -320,6 +326,7 @@ async function callGemini(apiKey: string, userPrompt: string) {
   }
 
   const data = await response.json()
+  clearTimeout(timeout)
   return (
     data.candidates?.[0]?.content?.parts
       ?.map((p: { text?: string }) => p.text || '')
@@ -328,65 +335,90 @@ async function callGemini(apiKey: string, userPrompt: string) {
 }
 
 async function callAnthropic(apiKey: string, userPrompt: string) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      max_tokens: 12000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userPrompt }],
-    }),
-  })
+  // Use the model env var if set, otherwise pick the latest stable Sonnet.
+  // Note: 'claude-sonnet-5' is NOT a valid model ID — the correct IDs are
+  // 'claude-sonnet-4-5' or 'claude-opus-4-5'. We default to sonnet-4-5
+  // which is the most cost-effective model that fits our 16k token budget.
+  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
 
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '')
-    throw new Response(
-      JSON.stringify({ error: `Anthropic API error ${response.status}: ${errText.slice(0, 300)}` }),
-      { status: response.status, headers: { 'Content-Type': 'application/json' } }
-    )
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 16000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+    })
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      throw new Response(
+        JSON.stringify({ error: `Anthropic API error ${response.status} (${model}): ${errText.slice(0, 300)}` }),
+        { status: response.status, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const data = await response.json()
+    return data.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
+  } finally {
+    clearTimeout(timeout)
   }
-
-  const data = await response.json()
-  return data.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
 }
 
-// NVIDIA NIM API (supports GLM-5, GLM-4, and OpenAI-compatible models)
+// NVIDIA NIM API (supports GLM-5.3-flash and other OpenAI-compatible models)
 // Uses NVIDIA's OpenAI-compatible endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+// Default model: z-ai/glm-5.3-flash (confirmed working NIM tag).
+// Override via NVIDIA_MODEL env var (e.g. meta/llama-3.1-70b-instruct).
 async function callNvidia(apiKey: string, userPrompt: string) {
-  const model = process.env.NVIDIA_MODEL || process.env.GLM_MODEL || 'zhipuai/glm-5'
-  const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.1,
-      max_tokens: 16384,
-      response_format: { type: 'json_object' },
-    }),
-  })
+  const model = process.env.NVIDIA_MODEL || process.env.GLM_MODEL || 'z-ai/glm-5.3-flash'
 
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '')
-    throw new Response(
-      JSON.stringify({ error: `NVIDIA API error ${response.status} (${model}): ${errText.slice(0, 300)}` }),
-      { status: response.status, headers: { 'Content-Type': 'application/json' } }
-    )
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
+
+  try {
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 16384,
+        response_format: { type: 'json_object' },
+      }),
+    })
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      throw new Response(
+        JSON.stringify({ error: `NVIDIA API error ${response.status} (${model}): ${errText.slice(0, 300)}` }),
+        { status: response.status, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const data = await response.json()
+    return data.choices?.[0]?.message?.content || ''
+  } finally {
+    clearTimeout(timeout)
   }
-
-  const data = await response.json()
-  return data.choices?.[0]?.message?.content || ''
 }
 
 // ── Solodit corroboration ──────────────────────────────────────────────────
@@ -580,14 +612,19 @@ export async function action({ request }: Route.ActionArgs) {
     const nvidiaKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_KEY
 
     if (!geminiKey && !anthropicKey && !nvidiaKey) {
-      return Response.json({ error: 'No LLM provider configured — set NVIDIA_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY' }, { status: 500 })
+      return Response.json(
+        { error: 'No LLM provider configured — set GEMINI_API_KEY, ANTHROPIC_API_KEY, or NVIDIA_API_KEY in your environment / .env file.' },
+        { status: 500 }
+      )
     }
 
-    // Gemini, NVIDIA (GLM-5.2 / GLM-5), and Anthropic all support large context and generous output budgets.
-    const MAX_CHARS = 14000
+    // All three providers support 100k+ context, so we only truncate at 80k chars (~20k tokens)
+    // to keep prompts within practical limits. Previously this was 14k which silently discarded
+    // most of large DeFi contracts, severely degrading audit quality.
+    const MAX_CHARS = 80_000
     const SOLODIT_LIMIT = 6
     const truncated = code.length > MAX_CHARS
-      ? code.slice(0, MAX_CHARS) + `\n\n// [TRUNCATED — file exceeds ${MAX_CHARS / 1000}k chars]`
+      ? code.slice(0, MAX_CHARS) + `\n\n// [TRUNCATED — file exceeds ${MAX_CHARS / 1000}k chars; only first ${MAX_CHARS / 1000}k analyzed]`
       : code
 
     let soloditRefs: SoloditRef[] = []

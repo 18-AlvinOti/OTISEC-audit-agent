@@ -152,13 +152,13 @@ export default function Home() {
 
             const data = await res.json()
             if (!res.ok || data.error) {
+              // Genuine API/network failure — show error and fall back to demo
               setApiError(data.error || `HTTP ${res.status}`)
-            } else if (Array.isArray(data.findings) && data.findings.length > 0) {
+            } else if (Array.isArray(data.findings)) {
+              // Valid response — even an empty array is a real result ("clean contract")
               liveFindingsResult = data.findings
               liveLeadsResult = Array.isArray(data.leads) ? data.leads : []
               liveSoloditResult = Array.isArray(data.soloditRefs) ? data.soloditRefs : []
-            } else {
-              setApiError('API returned no findings — check your contract code.')
             }
           } catch (err: unknown) {
             setApiError(`Network error: ${err instanceof Error ? err.message : 'Unknown'}`)
@@ -181,8 +181,11 @@ export default function Home() {
     setProgressLabel('Complete')
     setPhase(5)
 
-    const finalFindings = liveFindingsResult || DEMO_FINDINGS[targetProto] || DEMO_FINDINGS.lending
-    const live = !!liveFindingsResult
+    // liveFindingsResult===null means API was not called (demo mode) or a network/auth error occurred.
+    // liveFindingsResult===[] is a VALID result: the model found no issues in this contract.
+    // Only fall back to demo data when we genuinely didn't run a live audit.
+    const finalFindings = liveFindingsResult !== null ? liveFindingsResult : (DEMO_FINDINGS[targetProto] || DEMO_FINDINGS.lending)
+    const live = liveFindingsResult !== null
     setFindings(finalFindings)
     setLeads(live ? liveLeadsResult : [])
     setSoloditRefs(live ? liveSoloditResult : [])
