@@ -233,18 +233,12 @@ Schema:
 
 Maximum 4 findings ordered by confidence descending, maximum 4 leads. Every finding's "poc" must contain a concrete runnable test — no proof means it belongs in "leads" instead.`
 
-// Google Gemini — preferred provider (large context, no tight TPM ceiling, so it gets the
-// full uncondensed SYSTEM_PROMPT). Defaults to gemini-2.5-flash (works on the free tier;
-// gemini-2.5-pro requires a billing-enabled project) and is overridable via GEMINI_MODEL so
-// the model can be bumped without a code change. JSON response mode gives the parser a clean
-// object. Note 2.5-flash is a "thinking" model — thinking tokens count against maxOutputTokens,
-// so the budget is generous to leave room for a full findings JSON after the reasoning pass.
+// Google Gemini — preferred provider (large context, no tight TPM ceiling).
+// Defaults to gemini-1.5-flash (stable free-tier model) with fallback to gemini-1.5-pro and gemini-2.0-flash.
 async function callGemini(apiKey: string, userPrompt: string) {
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
-  // Candidate models to try if the primary encounters a 503 (High Demand) or 429 (Rate Limit) spike
-  const modelsToTry = [primaryModel]
-  if (!modelsToTry.includes('gemini-2.0-flash')) modelsToTry.push('gemini-2.0-flash')
-  if (!modelsToTry.includes('gemini-1.5-flash')) modelsToTry.push('gemini-1.5-flash')
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+  const candidateModels = [primaryModel, 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash']
+  const modelsToTry = Array.from(new Set(candidateModels))
 
   let lastErrText = ''
   let lastStatus = 500
@@ -252,7 +246,7 @@ async function callGemini(apiKey: string, userPrompt: string) {
   for (const model of modelsToTry) {
     for (let attempt = 0; attempt < 2; attempt++) {
       if (attempt > 0) {
-        await new Promise((r) => setTimeout(r, 1500 * attempt))
+        await new Promise((r) => setTimeout(r, 1000 * attempt))
       }
 
       const controller = new AbortController()
@@ -335,9 +329,9 @@ async function callGemini(apiKey: string, userPrompt: string) {
           lastStatus = response.status
           lastErrText = await response.text().catch(() => '')
           if (response.status === 503 || response.status === 429) {
-            continue // retry / try next candidate model
+            continue
           }
-          break // non-retryable error (e.g. 400 Bad Request, 401 Unauthorized)
+          break
         }
 
         const data = await response.json()
@@ -354,7 +348,7 @@ async function callGemini(apiKey: string, userPrompt: string) {
         clearTimeout(timeout)
         if (err instanceof Error && err.name === 'AbortError') {
           lastStatus = 504
-          lastErrText = 'Gemini request timed out after 90 seconds'
+          lastErrText = `Gemini (${model}) timed out after 90s`
         } else {
           lastStatus = 500
           lastErrText = err instanceof Error ? err.message : String(err)
