@@ -151,6 +151,7 @@ export default function Home() {
   const [isLive, setIsLive] = useState(false)
   const [auditMeta, setAuditMeta] = useState('')
   const [apiError, setApiError] = useState('')
+  const [detectedProtocol, setDetectedProtocol] = useState('')
   const [hasRun, setHasRun] = useState(false)
   const [modelSearch, setModelSearch] = useState('')
   const [openModels, setOpenModels] = useState<Record<string, boolean>>({})
@@ -328,10 +329,10 @@ export default function Home() {
   // probability models genuinely contributes to the score when it fires on a real finding.
   const scoreDims = (isLive && findings.length > 0)
     ? SCORE_DIMS.map(dim => {
-        const hits = findings.filter(f => (f.prob || []).some(p => dim.models.includes(p)))
-        const deduction = hits.reduce((sum, f) => sum + (SEV_SCORE_WEIGHT[f.sev] || 5) * ((f.confidence ?? 70) / 100), 0)
-        return { ...dim, v: Math.max(5, Math.round(92 - deduction)) }
-      })
+      const hits = findings.filter(f => (f.prob || []).some(p => dim.models.includes(p)))
+      const deduction = hits.reduce((sum, f) => sum + (SEV_SCORE_WEIGHT[f.sev] || 5) * ((f.confidence ?? 70) / 100), 0)
+      return { ...dim, v: Math.max(5, Math.round(92 - deduction)) }
+    })
     : SCORE_DIMS
   const overall = Math.round(scoreDims.reduce((a, d) => a + d.v, 0) / scoreDims.length)
 
@@ -573,14 +574,14 @@ export default function Home() {
                       backdropFilter: 'blur(8px)',
                       transition: 'border-color 0.2s, box-shadow 0.2s',
                     }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = 'rgba(200,205,168,0.20)'
-                      e.currentTarget.style.boxShadow = '0 0 24px rgba(239,235,221,0.04)'
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = 'rgba(239,235,221,0.07)'
-                      e.currentTarget.style.boxShadow = 'none'
-                    }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = 'rgba(200,205,168,0.20)'
+                        e.currentTarget.style.boxShadow = '0 0 24px rgba(239,235,221,0.04)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = 'rgba(239,235,221,0.07)'
+                        e.currentTarget.style.boxShadow = 'none'
+                      }}
                     >
                       <span style={{
                         fontFamily: 'Space Mono, monospace',
@@ -1095,7 +1096,7 @@ export default function Home() {
                 <span className="font-mono text-[10px] text-white/40">SmartBugs + SWC + DASP · probability-weighted · Immunefi + Solodit precedent</span>
               </div>
               <div className="flex gap-2 mb-4 flex-wrap">
-                {(['all','High','Medium','Low'] as const).map(f => (
+                {(['all', 'High', 'Medium', 'Low'] as const).map(f => (
                   <button key={f} onClick={() => setMatrixFilter(f)}
                     className={`font-mono text-[10px] px-3 py-1.5 rounded-lg border transition-all capitalize
                       ${matrixFilter === f ? 'border-teal-500 text-teal-300 bg-teal-900/20' : 'border-white/10 text-white/40 hover:border-white/20 hover:text-white/60'}`}>
@@ -1111,7 +1112,7 @@ export default function Home() {
                 <table className="w-full text-xs min-w-[700px]">
                   <thead>
                     <tr className="border-b border-white/10 bg-white/3">
-                      {['Vulnerability','Severity','SWC / DASP','Prob Model','Aave Surface','Detection','Real-World Precedent'].map(h => (
+                      {['Vulnerability', 'Severity', 'SWC / DASP', 'Prob Model', 'Aave Surface', 'Detection', 'Real-World Precedent'].map(h => (
                         <th key={h} className="text-left px-3 py-2.5 font-mono text-[9px] text-white/40 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -1124,14 +1125,14 @@ export default function Home() {
                           <span className={`font-mono text-[9px] px-2 py-0.5 rounded border
                             ${v.s === 'High' ? 'bg-orange-900/30 text-orange-300 border-orange-800/40' :
                               v.s === 'Medium' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-800/40' :
-                              'bg-blue-900/30 text-blue-300 border-blue-800/40'}`}>
+                                'bg-blue-900/30 text-blue-300 border-blue-800/40'}`}>
                             {v.s}
                           </span>
                         </td>
                         <td className="px-3 py-2.5 font-mono text-[10px]">
                           {v.swc && v.swc !== '-'
                             ? <a href={`https://swcregistry.io/docs/${v.swc}`} target="_blank" rel="noreferrer"
-                                className="text-blue-400 hover:text-teal-300 underline">{v.swc}</a>
+                              className="text-blue-400 hover:text-teal-300 underline">{v.swc}</a>
                             : <span className="text-white/20">—</span>
                           }
                           {v.dasp && v.dasp !== '-' && <span className="text-white/30 ml-1">{v.dasp}</span>}
@@ -1162,7 +1163,7 @@ export default function Home() {
                 <span className="font-mono text-[10px] text-white/40">Key exploit patterns from 2024 analysis</span>
               </div>
               <div className="grid grid-cols-3 gap-3 mb-5">
-                {[{v:'$2.1B',l:'Total lost 2024'},{v:'67%',l:'Logic flaws'},{v:'41%',l:'Flash loan involved'}].map(s => (
+                {[{ v: '$2.1B', l: 'Total lost 2024' }, { v: '67%', l: 'Logic flaws' }, { v: '41%', l: 'Flash loan involved' }].map(s => (
                   <div key={s.l} className="bg-white/5 rounded-xl p-4 text-center border border-white/8">
                     <div className="font-mono text-xl font-bold text-orange-400">{s.v}</div>
                     <div className="text-[10px] text-white/40 mt-1">{s.l}</div>
