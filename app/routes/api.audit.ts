@@ -532,7 +532,75 @@ async function searchSolodit(apiKey: string, keywords: string, limit = 6): Promi
   }
 }
 
-function extractCompleteObjectsFromSlice(arrayStr: string): any[] {
+function repairJsonString(input: string): string {
+  let cleaned = input.trim()
+    .replace(/^```(?:json)?\s*/mi, '')
+    .replace(/\s*```$/m, '')
+    .trim()
+
+  // Find the start of the JSON object if preceded by reasoning/text
+  const firstBrace = cleaned.indexOf('{')
+  if (firstBrace > 0) {
+    cleaned = cleaned.slice(firstBrace)
+  }
+
+  let inString = false
+  let escape = false
+  const stack: string[] = []
+
+  for (let i = 0; i < cleaned.length; i++) {
+    const char = cleaned[i]
+
+    if (escape) {
+      escape = false
+      continue
+    }
+
+    if (char === '\\') {
+      escape = true
+      continue
+    }
+
+    if (char === '"') {
+      inString = !inString
+      continue
+    }
+
+    if (!inString) {
+      if (char === '{' || char === '[') {
+        stack.push(char)
+      } else if (char === '}') {
+        if (stack[stack.length - 1] === '{') stack.pop()
+      } else if (char === ']') {
+        if (stack[stack.length - 1] === '[') stack.pop()
+      }
+    }
+  }
+
+  let repaired = cleaned
+
+  // If left inside a string literal, close the quote
+  if (inString) {
+    if (repaired.endsWith('\\')) {
+      repaired = repaired.slice(0, -1)
+    }
+    repaired += '"'
+  }
+
+  // Remove trailing commas before closing brackets
+  repaired = repaired.replace(/,\s*$/, '')
+
+  // Close remaining open brackets and braces in reverse order
+  while (stack.length > 0) {
+    const open = stack.pop()
+    if (open === '{') repaired += '}'
+    else if (open === '[') repaired += ']'
+  }
+
+  return repaired
+}
+
+function extractObjectsWithRepair(arrayStr: string): any[] {
   const results: any[] = []
   let depth = 0
   let inString = false
@@ -572,8 +640,11 @@ function extractCompleteObjectsFromSlice(arrayStr: string): any[] {
         const objStr = arrayStr.substring(currentObjectStart, i + 1)
         try {
           results.push(JSON.parse(objStr))
-        } catch (e) {
-          // Ignore invalid/incomplete objects
+        } catch {
+          // Try repairing individual object
+          try {
+            results.push(JSON.parse(repairJsonString(objStr)))
+          } catch {}
         }
         currentObjectStart = -1
       }
@@ -583,45 +654,65 @@ function extractCompleteObjectsFromSlice(arrayStr: string): any[] {
       break
     }
   }
+
+  // Handle a trailing incomplete object that never reached depth 0
+  if (currentObjectStart !== -1 && depth > 0) {
+    const incompleteObjStr = arrayStr.substring(currentObjectStart)
+    try {
+      const repairedObj = JSON.parse(repairJsonString(incompleteObjStr))
+      if (repairedObj && typeof repairedObj === 'object' && (repairedObj.title || repairedObj.sev || repairedObj.id)) {
+        results.push(repairedObj)
+      }
+    } catch {}
+  }
+
   return results
 }
 
 function parseTruncatedJson(rawText: string) {
   const cleaned = rawText.trim()
-    .replace(/^```(?:json)?\s*/m, '')
+    .replace(/^```(?:json)?\s*/mi, '')
     .replace(/\s*```$/m, '')
     .trim()
 
+  // Tier 1: Direct JSON.parse
   try {
     return JSON.parse(cleaned)
-  } catch (err) {
-    const result: { findings: any[]; leads: any[] } = { findings: [], leads: [] }
+  } catch {}
 
-    // Locate "findings" array
-    const findingsIndex = cleaned.indexOf('"findings"')
-    if (findingsIndex !== -1) {
-      const startBracket = cleaned.indexOf('[', findingsIndex)
-      if (startBracket !== -1) {
-        result.findings = extractCompleteObjectsFromSlice(cleaned.slice(startBracket))
-      }
+  // Tier 2: Global auto-closure repair
+  try {
+    const repaired = repairJsonString(cleaned)
+    const parsed = JSON.parse(repaired)
+    if (parsed && typeof parsed === 'object' && (Array.isArray(parsed.findings) || Array.isArray(parsed.leads))) {
+      return parsed
     }
+  } catch {}
 
-    // Locate "leads" array
-    const leadsIndex = cleaned.indexOf('"leads"')
-    if (leadsIndex !== -1) {
-      const startBracket = cleaned.indexOf('[', leadsIndex)
-      if (startBracket !== -1) {
-        result.leads = extractCompleteObjectsFromSlice(cleaned.slice(startBracket))
-      }
+  // Tier 3: Selective extraction with per-object repair
+  const result: { findings: any[]; leads: any[] } = { findings: [], leads: [] }
+
+  const findingsIndex = cleaned.indexOf('"findings"')
+  if (findingsIndex !== -1) {
+    const startBracket = cleaned.indexOf('[', findingsIndex)
+    if (startBracket !== -1) {
+      result.findings = extractObjectsWithRepair(cleaned.slice(startBracket))
     }
+  }
 
-    // If we couldn't find or parse any findings/leads, rethrow the original error
-    if (result.findings.length === 0 && result.leads.length === 0) {
-      throw err
+  const leadsIndex = cleaned.indexOf('"leads"')
+  if (leadsIndex !== -1) {
+    const startBracket = cleaned.indexOf('[', leadsIndex)
+    if (startBracket !== -1) {
+      result.leads = extractObjectsWithRepair(cleaned.slice(startBracket))
     }
+  }
 
+  if (result.findings.length > 0 || result.leads.length > 0) {
     return result
   }
+
+  throw new Error(`JSON parse failed. Raw snippet: ${cleaned.slice(0, 300)}`)
 }
 
 export async function action({ request }: Route.ActionArgs) {
