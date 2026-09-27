@@ -130,6 +130,7 @@ export default function Home() {
     let liveFindingsResult: Finding[] | null = null
     let liveLeadsResult: Lead[] = []
     let liveSoloditResult: SoloditRef[] = []
+    let liveAuditFailed = false
 
     if (!isDemo && files.length > 0) {
       // Live mode: run real pipeline
@@ -152,8 +153,10 @@ export default function Home() {
 
             const data = await res.json()
             if (!res.ok || data.error) {
-              // Genuine API/network failure — show error and fall back to demo
+              // Genuine API/network failure — show error banner and DO NOT fall back to demo findings
               setApiError(data.error || `HTTP ${res.status}`)
+              liveAuditFailed = true
+              liveFindingsResult = []
             } else if (Array.isArray(data.findings)) {
               // Valid response — even an empty array is a real result ("clean contract")
               liveFindingsResult = data.findings
@@ -162,6 +165,8 @@ export default function Home() {
             }
           } catch (err: unknown) {
             setApiError(`Network error: ${err instanceof Error ? err.message : 'Unknown'}`)
+            liveAuditFailed = true
+            liveFindingsResult = []
           }
           await sleep(300)
         } else {
@@ -181,22 +186,21 @@ export default function Home() {
     setProgressLabel('Complete')
     setPhase(5)
 
-    // liveFindingsResult===null means API was not called (demo mode) or a network/auth error occurred.
-    // liveFindingsResult===[] is a VALID result: the model found no issues in this contract.
-    // Only fall back to demo data when we genuinely didn't run a live audit.
-    const finalFindings = liveFindingsResult !== null ? liveFindingsResult : (DEMO_FINDINGS[targetProto] || DEMO_FINDINGS.lending)
-    const live = liveFindingsResult !== null
+    // In demo mode: use DEMO_FINDINGS.
+    // In live mode (isDemo === false): use live findings if successful, or [] if failed (NEVER fall back to demo).
+    const live = !isDemo
+    const finalFindings = live ? (liveFindingsResult || []) : (DEMO_FINDINGS[targetProto] || DEMO_FINDINGS.lending)
     setFindings(finalFindings)
     setLeads(live ? liveLeadsResult : [])
     setSoloditRefs(live ? liveSoloditResult : [])
     setIsLive(live)
 
     const src = live ? files.map(f => f.name).join(', ') : `demo: ${targetProto}`
-    setAuditMeta(`${finalFindings.length} findings · ${src}`)
+    setAuditMeta(live && liveAuditFailed ? `Audit failed · ${src}` : `${finalFindings.length} findings · ${src}`)
     setRunning(false)
 
-    // Only real audits get saved — demo runs would just clutter Past Reports.
-    if (live) {
+    // Only real, successful audits get saved to Past Reports.
+    if (live && !liveAuditFailed) {
       savePastReport({
         filename: files.map(f => f.name).join(', ') || 'unknown',
         findings: finalFindings,

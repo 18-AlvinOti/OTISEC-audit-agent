@@ -240,97 +240,132 @@ Maximum 4 findings ordered by confidence descending, maximum 4 leads. Every find
 // object. Note 2.5-flash is a "thinking" model — thinking tokens count against maxOutputTokens,
 // so the budget is generous to leave room for a full findings JSON after the reasoning pass.
 async function callGemini(apiKey: string, userPrompt: string) {
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  // Candidate models to try if the primary encounters a 503 (High Demand) or 429 (Rate Limit) spike
+  const modelsToTry = [primaryModel]
+  if (!modelsToTry.includes('gemini-2.0-flash')) modelsToTry.push('gemini-2.0-flash')
+  if (!modelsToTry.includes('gemini-1.5-flash')) modelsToTry.push('gemini-1.5-flash')
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
+  let lastErrText = ''
+  let lastStatus = 500
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          maxOutputTokens: 24000,
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'OBJECT',
-            properties: {
-              findings: {
-                type: 'ARRAY',
-                items: {
-                  type: 'OBJECT',
-                  properties: {
-                    sev: { type: 'STRING', enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] },
-                    id: { type: 'STRING' },
-                    title: { type: 'STRING' },
-                    summary: { type: 'STRING' },
-                    rootCause: { type: 'STRING' },
-                    symmetry: { type: 'STRING' },
-                    externalPreconditions: { type: 'STRING' },
-                    internalPreconditions: { type: 'STRING' },
-                    attackPath: { type: 'STRING' },
-                    impact: { type: 'STRING' },
-                    poc: { type: 'STRING' },
-                    mitigation: { type: 'STRING' },
-                    prob: { type: 'ARRAY', items: { type: 'STRING' } },
-                    aave: { type: 'ARRAY', items: { type: 'STRING' } },
-                    swc: { type: 'ARRAY', items: { type: 'STRING' } },
-                    immunefi: { type: 'ARRAY', items: { type: 'STRING' } },
-                    fizzProperties: { type: 'ARRAY', items: { type: 'STRING' } },
-                    confidence: { type: 'INTEGER' },
-                    lens: { type: 'STRING' },
-                  },
-                  required: [
-                    'sev', 'id', 'title', 'summary', 'rootCause',
-                    'externalPreconditions', 'internalPreconditions',
-                    'attackPath', 'impact', 'poc', 'mitigation',
-                    'prob', 'aave', 'swc', 'immunefi', 'fizzProperties', 'confidence', 'lens'
-                  ],
-                },
-              },
-              leads: {
-                type: 'ARRAY',
-                items: {
-                  type: 'OBJECT',
-                  properties: {
-                    title: { type: 'STRING' },
-                    codeSmells: { type: 'STRING' },
-                    description: { type: 'STRING' },
-                  },
-                  required: ['title', 'codeSmells', 'description'],
-                },
-              },
+  for (const model of modelsToTry) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 1500 * attempt))
+      }
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
+
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
             },
-            required: ['findings', 'leads'],
-          },
-        },
-      }),
-    }
-  )
+            body: JSON.stringify({
+              system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+              generationConfig: {
+                maxOutputTokens: 24000,
+                responseMimeType: 'application/json',
+                responseSchema: {
+                  type: 'OBJECT',
+                  properties: {
+                    findings: {
+                      type: 'ARRAY',
+                      items: {
+                        type: 'OBJECT',
+                        properties: {
+                          sev: { type: 'STRING', enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] },
+                          id: { type: 'STRING' },
+                          title: { type: 'STRING' },
+                          summary: { type: 'STRING' },
+                          rootCause: { type: 'STRING' },
+                          symmetry: { type: 'STRING' },
+                          externalPreconditions: { type: 'STRING' },
+                          internalPreconditions: { type: 'STRING' },
+                          attackPath: { type: 'STRING' },
+                          impact: { type: 'STRING' },
+                          poc: { type: 'STRING' },
+                          mitigation: { type: 'STRING' },
+                          prob: { type: 'ARRAY', items: { type: 'STRING' } },
+                          aave: { type: 'ARRAY', items: { type: 'STRING' } },
+                          swc: { type: 'ARRAY', items: { type: 'STRING' } },
+                          immunefi: { type: 'ARRAY', items: { type: 'STRING' } },
+                          fizzProperties: { type: 'ARRAY', items: { type: 'STRING' } },
+                          confidence: { type: 'INTEGER' },
+                          lens: { type: 'STRING' },
+                        },
+                        required: [
+                          'sev', 'id', 'title', 'summary', 'rootCause',
+                          'externalPreconditions', 'internalPreconditions',
+                          'attackPath', 'impact', 'poc', 'mitigation',
+                          'prob', 'aave', 'swc', 'immunefi', 'fizzProperties', 'confidence', 'lens'
+                        ],
+                      },
+                    },
+                    leads: {
+                      type: 'ARRAY',
+                      items: {
+                        type: 'OBJECT',
+                        properties: {
+                          title: { type: 'STRING' },
+                          codeSmells: { type: 'STRING' },
+                          description: { type: 'STRING' },
+                        },
+                        required: ['title', 'codeSmells', 'description'],
+                      },
+                    },
+                  },
+                  required: ['findings', 'leads'],
+                },
+              },
+            }),
+          }
+        )
 
-  if (!response.ok) {
-    clearTimeout(timeout)
-    const errText = await response.text().catch(() => '')
-    throw new Response(
-      JSON.stringify({ error: `Gemini API error ${response.status}: ${errText.slice(0, 300)}` }),
-      { status: response.status, headers: { 'Content-Type': 'application/json' } }
-    )
+        if (!response.ok) {
+          clearTimeout(timeout)
+          lastStatus = response.status
+          lastErrText = await response.text().catch(() => '')
+          if (response.status === 503 || response.status === 429) {
+            continue // retry / try next candidate model
+          }
+          break // non-retryable error (e.g. 400 Bad Request, 401 Unauthorized)
+        }
+
+        const data = await response.json()
+        clearTimeout(timeout)
+        const text = (
+          data.candidates?.[0]?.content?.parts
+            ?.map((p: { text?: string }) => p.text || '')
+            .join('') || ''
+        )
+        if (text.trim()) {
+          return text
+        }
+      } catch (err) {
+        clearTimeout(timeout)
+        if (err instanceof Error && err.name === 'AbortError') {
+          lastStatus = 504
+          lastErrText = 'Gemini request timed out after 90 seconds'
+        } else {
+          lastStatus = 500
+          lastErrText = err instanceof Error ? err.message : String(err)
+        }
+      }
+    }
   }
 
-  const data = await response.json()
-  clearTimeout(timeout)
-  return (
-    data.candidates?.[0]?.content?.parts
-      ?.map((p: { text?: string }) => p.text || '')
-      .join('') || ''
+  throw new Response(
+    JSON.stringify({ error: `Gemini API error ${lastStatus}: ${lastErrText.slice(0, 300)}` }),
+    { status: lastStatus, headers: { 'Content-Type': 'application/json' } }
   )
 }
 
