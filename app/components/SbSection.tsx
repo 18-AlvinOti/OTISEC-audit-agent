@@ -11,7 +11,7 @@ export function SbSection({ label, children, style = {} }: Props) {
       <div style={{
         fontFamily: 'var(--font-mono)', fontSize: 'var(--text-micro)', fontWeight: 700,
         textTransform: 'uppercase', letterSpacing: 'var(--tracking-widest)',
-        color: 'rgba(255,255,255,0.25)', marginBottom: 2,
+        color: 'var(--ink-muted)', marginBottom: 2,
       }}>{label}</div>
       {children}
     </div>

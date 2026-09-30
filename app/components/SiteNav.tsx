@@ -15,7 +15,8 @@ export function SiteNav() {
   return (
     <nav style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '10px 20px', borderBottom: '1px solid var(--border-2)', background: 'var(--bg-nav)',
+      padding: '10px 20px', borderBottom: '1px solid var(--cream-border)', background: 'var(--cream-bg)',
+      backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
       flexWrap: 'wrap', gap: 8,
     }}>
       <Link to="/welcome" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
@@ -25,19 +26,19 @@ export function SiteNav() {
         }}>
           <BrandMark size={15} />
         </div>
-        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 'var(--text-tiny)', letterSpacing: 'var(--tracking-widest)', color: 'var(--text-teal-heading)' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 'var(--text-tiny)', letterSpacing: 'var(--tracking-widest)', color: 'var(--ink)' }}>
           OTISEC SENTINEL
         </span>
       </Link>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         {SITE_LINKS.map(l => (
           <Link key={l.label} to={l.href} style={{
-            fontFamily: 'var(--font-mono)', fontSize: 'var(--text-tiny)', color: 'var(--text-muted)',
+            fontFamily: 'var(--font-mono)', fontSize: 'var(--text-tiny)', color: 'var(--ink-muted)',
             textDecoration: 'none', padding: '5px 10px', borderRadius: 'var(--radius-sm)',
-            transition: 'color 0.15s ease',
+            transition: 'color 0.15s ease, background 0.15s ease',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--teal-200)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-muted)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--cream-accent)'; (e.currentTarget as HTMLAnchorElement).style.background = 'var(--cream-hover)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--ink-muted)'; (e.currentTarget as HTMLAnchorElement).style.background = 'transparent' }}
           >
             {l.label}
           </Link>

@@ -74,8 +74,8 @@
   --bg-body:       var(--bg-image);
   --bg-app:        transparent;            /* let the body image show through the app shell */
   --bg-nav:        rgba(9,16,33,0.72);
-  --bg-tabs:       rgba(11,21,42,0.60);
-  --bg-sidebar:    rgba(7,13,28,0.66);
+  --bg-tabs:       var(--cream-bg);       /* cream light chrome */
+  --bg-sidebar:    var(--cream-surface);  /* cream light chrome */
   --surface-card:  rgba(12,25,52,0.66);
   --surface-track: rgba(16,30,60,0.55);
 
@@ -148,6 +148,19 @@
   /* ── Brand mark */
   --brand-gold:     #D4A84B;
   --brand-charcoal: #1C1A10;
+
+  /* ══════════════════════════════════════════════════════
+     CREAM LIGHT CHROME — nav, brand header, tab bar, sidebar.
+     The working/main area stays on the dark surfaces above.
+     ══════════════════════════════════════════════════════ */
+  --cream-bg:      #F5EFE0;   /* nav, brand header, tabs */
+  --cream-surface: #FBF7EE;   /* sidebar, dropzone, chrome cards */
+  --cream-border:  #E2D8C3;
+  --ink:           #1F2A3D;   /* primary text on cream */
+  --ink-muted:     #5B6475;   /* secondary text, counts */
+  --cream-accent:  #0E2140;   /* active tab underline, focus ring */
+  --cream-badge:   #E9E0CC;   /* tab count-badge bg */
+  --cream-hover:   #EFE7D4;   /* pill / link hover bg */
 
   /* ── Type */
   --font-sans: 'Syne', sans-serif;

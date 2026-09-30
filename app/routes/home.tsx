@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Form } from 'react-router'
 import { AlertTriangle, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
@@ -20,6 +20,7 @@ import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'
 import { PastReportsList } from '@/components/PastReportsList'
 import { ExportButtons } from '@/components/ExportButtons'
+import { classifyFiles, relativeName } from '@/lib/scopeFilter'
 import JSZip from 'jszip'
 import type { Route } from './+types/home'
 
@@ -161,6 +162,10 @@ export default function Home() {
   const findingsRef = useRef<HTMLDivElement>(null)
 
   const [effort, setEffort] = useState<'medium' | 'high'>('high')
+  // Audit-scope filtering (shared with the pipeline via lib/scopeFilter).
+  const [forceInclude, setForceInclude] = useState<Set<string>>(new Set())
+  const [showExcluded, setShowExcluded] = useState(false)
+  const [showScopeFiles, setShowScopeFiles] = useState(false)
   const [readmeText, setReadmeText] = useState<string>('')
   const [showReadmePreview, setShowReadmePreview] = useState<boolean>(false)
 
@@ -227,7 +232,9 @@ export default function Home() {
         if (i === 1) {
           // Call API on phase 2
           try {
-            const allCode = await Promise.all(files.map(async f => {
+            // Only send audit-relevant, in-scope files to the model (drops test/mock/tooling/vendor).
+            const scopedFiles = scope.inScope.length > 0 ? scope.inScope : files
+            const allCode = await Promise.all(scopedFiles.map(async f => {
               const txt = await f.text()
               return `// ===== FILE: ${f.name} =====\n${txt}`
             }))
@@ -238,7 +245,7 @@ export default function Home() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 code: combinedCode,
-                filename: files.map(f => f.name).join(', '),
+                filename: scopedFiles.map(f => f.name).join(', '),
                 readme: readmeText,
                 effort,
               }),
@@ -329,6 +336,16 @@ export default function Home() {
 
   // Recompute each dimension from live findings' "prob" tags so every one of the 17
   // probability models genuinely contributes to the score when it fires on a real finding.
+  // Classify uploaded files into audit scope (source/interfaces) vs excluded (test/mock/tooling/vendor).
+  const scope = useMemo(() => classifyFiles(files, forceInclude), [files, forceInclude])
+  const toggleInclude = useCallback((name: string) => {
+    setForceInclude(prev => {
+      const next = new Set(prev)
+      next.has(name) ? next.delete(name) : next.add(name)
+      return next
+    })
+  }, [])
+
   const scoreDims = (isLive && findings.length > 0)
     ? SCORE_DIMS.map(dim => {
       const hits = findings.filter(f => (f.prob || []).some(p => dim.models.includes(p)))
@@ -344,7 +361,7 @@ export default function Home() {
 
       {/* NAV */}
       <nav className="flex items-center justify-between px-5 py-3 border-b sticky top-0 z-50"
-        style={{ background: 'var(--bg-nav)', borderColor: 'var(--border-3)' }}>
+        style={{ background: 'var(--cream-bg)', borderColor: 'var(--cream-border)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
         <div className="flex items-center gap-3">
           <div style={{
             width: '32px', height: '32px', borderRadius: '8px',
@@ -355,8 +372,8 @@ export default function Home() {
             <BrandMark size={16} />
           </div>
           <div>
-            <div className="font-mono font-bold text-sm tracking-widest" style={{ color: 'var(--cream)' }}>OTISEC SENTINEL</div>
-            <div className="font-mono" style={{ fontSize: '9px', color: 'var(--text-teal-sub)' }}>Thragg-oti · Smart Contract Auditor v2.2</div>
+            <div className="font-mono font-bold text-sm tracking-widest" style={{ color: 'var(--ink)' }}>OTISEC SENTINEL</div>
+            <div className="font-mono" style={{ fontSize: '9px', color: 'var(--ink-muted)' }}>Thragg-oti · Smart Contract Auditor v2.2</div>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -369,9 +386,9 @@ export default function Home() {
           ].map(l => (
             <a key={l.href} href={l.href} target="_blank" rel="noreferrer"
               className="font-mono text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1"
-              style={{ border: '1px solid var(--border-3)', color: 'var(--text-muted)' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--cream-dim)'; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(200,205,168,0.25)'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--border-3)'; }}
+              style={{ border: '1px solid var(--cream-border)', background: 'var(--cream-surface)', color: 'var(--ink)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--cream-hover)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--cream-accent)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--cream-surface)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--ink)'; }}
             >
               {l.label} <ExternalLink size={9} />
             </a>
@@ -403,20 +420,69 @@ export default function Home() {
 
         {/* SIDEBAR - Only show when audit has run */}
         {tab === 'audit' && hasRun && (
-          <aside style={{ width: '224px', flexShrink: 0, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border-3)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+          <aside style={{ width: '224px', flexShrink: 0, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--cream-border)', color: 'var(--ink)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
             <SbSection label="Upload Contract">
               <Dropzone rootProps={getRootProps()} inputProps={getInputProps()} active={isDragActive} />
-              <div className="mt-2 space-y-1">
-                {files.map((f, i) => (
-                  <div key={f.name} className="flex items-center gap-1.5 bg-white/5 rounded px-2 py-1.5">
-                    <span className="font-mono text-[8px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded flex-shrink-0">.{f.name.split('.').pop()}</span>
-                    <span className="text-[10px] text-white/70 truncate flex-1">{f.name}</span>
-                    <button onClick={() => removeFile(i)} className="text-white/30 hover:text-red-400 transition-colors flex-shrink-0">
-                      <Icon name="x" size={10} />
-                    </button>
+
+              {files.length > 0 && (
+                <>
+                  {/* Scope summary */}
+                  <div className="mt-2 font-mono text-[10px]" style={{ color: 'var(--ink)' }}>
+                    <span style={{ fontWeight: 700 }}>In scope {scope.inScope.length}</span>
+                    <span style={{ color: 'var(--ink-muted)' }}> · {scope.excluded.length} excluded</span>
                   </div>
-                ))}
-              </div>
+
+                  {/* In-scope files, grouped by top-level folder */}
+                  <div className="mt-1 space-y-1.5" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                    {scope.byFolder.map(group => (
+                      <div key={group.folder}>
+                        {scope.byFolder.length > 1 && (
+                          <div className="font-mono text-[8px] uppercase tracking-wider px-1" style={{ color: 'var(--ink-muted)' }} title={group.folder}>
+                            {group.folder} ({group.files.length})
+                          </div>
+                        )}
+                        {group.files.map((f) => {
+                          const idx = files.indexOf(f)
+                          return (
+                            <div key={f.name} className="flex items-center gap-1.5 rounded px-2 py-1" style={{ background: 'var(--cream-hover)' }} title={f.name}>
+                              <span className="font-mono text-[8px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--cream-accent)', background: 'var(--cream-badge)' }}>.{f.name.split('.').pop()}</span>
+                              <span className="text-[10px] truncate flex-1" style={{ color: 'var(--ink)' }}>{relativeName(f.name, group.folder)}</span>
+                              <button onClick={() => removeFile(idx)} style={{ color: 'var(--ink-muted)' }} className="hover:opacity-60 transition-opacity flex-shrink-0">
+                                <Icon name="x" size={10} />
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Excluded group — collapsed, with per-file include toggle */}
+                  {scope.excluded.length > 0 && (
+                    <div className="mt-1.5">
+                      <button onClick={() => setShowExcluded(v => !v)} className="font-mono text-[9px] flex items-center gap-1" style={{ color: 'var(--ink-muted)' }}>
+                        <Icon name={showExcluded ? 'chevron-down' : 'chevron-right'} size={9} />
+                        Excluded ({scope.excluded.length})
+                      </button>
+                      {showExcluded && (
+                        <div className="mt-1 space-y-1" style={{ maxHeight: 200, overflowY: 'auto' }}>
+                          {scope.excluded.map(f => (
+                            <div key={f.name} className="flex items-center gap-1.5 rounded px-2 py-1" style={{ background: 'transparent' }} title={f.name}>
+                              <span className="text-[9px] truncate flex-1" style={{ color: 'var(--ink-muted)' }}>{f.name}</span>
+                              <button onClick={() => toggleInclude(f.name)} title="Include in scope"
+                                className="font-mono text-[9px] px-1.5 rounded flex-shrink-0"
+                                style={{ color: 'var(--cream-accent)', border: '1px solid var(--cream-border)' }}>
+                                + include
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
               <Button
                 disabled={files.length === 0 || running}
                 onClick={() => runAudit()}
@@ -436,30 +502,33 @@ export default function Home() {
                     <span className="truncate">{detectedProtocol}</span>
                   </div>
                 </SbSection>
-                <div className="border-t border-white/8" />
+                <div className="border-t" style={{ borderColor: 'var(--cream-border)' }} />
               </>
             )}
 
             <SbSection label="Findings">
               {findings.length === 0
-                ? <p className="text-[10px] text-white/30 px-1">No findings yet</p>
+                ? <p className="text-[10px] px-1" style={{ color: 'var(--ink-muted)' }}>No findings yet</p>
                 : findings.map((f, i) => (
                   <button key={i} onClick={() => { setTab('audit'); findingsRef.current?.scrollIntoView() }}
-                    className="flex items-center gap-1.5 w-full px-2 py-1 rounded hover:bg-white/5 text-left">
-                    <span className="text-[10px] text-white/60 flex-1 truncate font-mono">{f.id}</span>
+                    className="flex items-center gap-1.5 w-full px-2 py-1 rounded text-left transition-colors"
+                    style={{ color: 'var(--ink)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--cream-hover)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}>
+                    <span className="text-[10px] flex-1 truncate font-mono" style={{ color: 'var(--ink)' }}>{f.id}</span>
                     <SevBadge sev={f.sev} compact />
                   </button>
                 ))
               }
             </SbSection>
 
-            <div className="border-t border-white/8" />
+            <div className="border-t" style={{ borderColor: 'var(--cream-border)' }} />
 
             <SbSection label="Pipeline">
               <Pipeline phases={PHASES} phase={phase} running={running} />
             </SbSection>
 
-            <div className="border-t border-white/8" />
+            <div className="border-t" style={{ borderColor: 'var(--cream-border)' }} />
 
             <SbSection label="Resources">
               {[
@@ -471,7 +540,10 @@ export default function Home() {
                 { label: 'Immunefi', href: 'https://immunefi.com/leaderboard/' },
               ].map(l => (
                 <a key={l.href} href={l.href} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-1.5 text-[10px] text-white/40 hover:text-teal-300 py-0.5 transition-colors">
+                  className="flex items-center gap-1.5 text-[10px] py-0.5 transition-colors"
+                  style={{ color: 'var(--ink-muted)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--cream-accent)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--ink-muted)' }}>
                   <span className="w-1 h-1 rounded-full bg-current flex-shrink-0" />
                   {l.label}
                 </a>
@@ -480,8 +552,8 @@ export default function Home() {
           </aside>
         )}
 
-        {/* MAIN CONTENT */}
-        <main className="flex-1 overflow-y-auto min-w-0">
+        {/* MAIN CONTENT — dark working area, framed by the cream chrome */}
+        <main className="flex-1 overflow-y-auto min-w-0" style={{ background: 'rgba(10,20,40,0.82)' }}>
 
           {/* ═══ AUDIT TAB: LANDING STATE (Layout A — Centered Stack) ═══ */}
           {tab === 'audit' && !hasRun && (
@@ -888,21 +960,42 @@ export default function Home() {
                   rootProps={getRootProps()}
                   inputProps={getInputProps()}
                   active={isDragActive}
-                  title={files.length > 0 ? files.map(f => f.name).join(', ') : 'Upload Smart Contract'}
+                  title={files.length > 0 ? `${scope.inScope.length} file${scope.inScope.length === 1 ? '' : 's'} in scope` : 'Upload Smart Contract'}
                 />
               </div>
 
-              {/* File chips */}
+              {/* Scope summary — compact, replaces the raw file-name dump */}
               {files.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {files.map((f, i) => (
-                    <div key={f.name} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
-                      <span className="font-mono text-[9px] text-teal-400">.{f.name.split('.').pop()}</span>
-                      <span className="text-[11px] text-white/70">{f.name}</span>
-                      <span className="font-mono text-[9px] text-white/30">{f.size < 1024 ? f.size + 'B' : Math.round(f.size / 1024) + 'KB'}</span>
-                      <button onClick={() => removeFile(i)} className="text-white/30 hover:text-red-400 transition-colors ml-1"><Icon name="x" size={11} /></button>
+                <div className="mb-4">
+                  <div className="flex items-center flex-wrap gap-2">
+                    <span className="font-mono text-[11px] text-white/80">
+                      <strong>{scope.inScope.length}</strong> file{scope.inScope.length === 1 ? '' : 's'} in scope
+                      <span className="text-white/40"> · {scope.excluded.length} excluded</span>
+                    </span>
+                    {scope.langBreakdown.map(l => (
+                      <span key={l.ext} className="font-mono text-[9px] px-2 py-0.5 rounded bg-teal-900/30 text-teal-300 border border-teal-700/30">
+                        {l.ext} {l.count}
+                      </span>
+                    ))}
+                    <button onClick={() => setShowScopeFiles(v => !v)} className="font-mono text-[9px] text-white/40 hover:text-teal-300 flex items-center gap-1 transition-colors">
+                      <Icon name={showScopeFiles ? 'chevron-down' : 'chevron-right'} size={9} />
+                      {showScopeFiles ? 'Hide files' : 'Show files'}
+                    </button>
+                  </div>
+                  {showScopeFiles && (
+                    <div className="mt-2 rounded-lg border border-white/10 bg-black/20 p-2 font-mono text-[10px] text-white/60" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                      {scope.inScope.map(f => {
+                        const idx = files.indexOf(f)
+                        return (
+                          <div key={f.name} className="flex items-center gap-2 py-0.5">
+                            <span className="text-teal-400 flex-shrink-0">.{f.name.split('.').pop()}</span>
+                            <span className="truncate flex-1" title={f.name}>{f.name}</span>
+                            <button onClick={() => removeFile(idx)} className="text-white/25 hover:text-red-400 transition-colors flex-shrink-0"><Icon name="x" size={10} /></button>
+                          </div>
+                        )
+                      })}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
 

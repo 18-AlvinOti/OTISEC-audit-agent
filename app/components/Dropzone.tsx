@@ -17,7 +17,7 @@ interface Props {
 /** Dashed drop target for contract files — compact (sidebar) or wide (dashboard) form. */
 export function Dropzone({ wide = false, active = false, title = 'Upload Smart Contract', subtitle, rootProps = {}, inputProps = {} }: Props) {
   const [hover, setHover] = useState(false)
-  const border = active ? 'var(--teal-100)' : hover ? 'var(--border-teal)' : (wide ? 'var(--border-2)' : 'var(--border-1)')
+  const border = active ? 'var(--teal-100)' : hover ? 'var(--border-teal)' : (wide ? 'var(--border-2)' : 'var(--cream-border)')
 
   if (wide) {
     return (
@@ -65,17 +65,17 @@ export function Dropzone({ wide = false, active = false, title = 'Upload Smart C
       style={{
         border: `1px dashed ${border}`, borderRadius: 'var(--radius-md)', padding: 12,
         textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s ease',
-        background: active ? 'rgba(4,52,44,0.2)' : 'transparent',
+        background: active ? 'rgba(4,52,44,0.2)' : 'var(--cream-surface)',
       }}
     >
       <input {...inputProps} />
-      <Icon name="upload" size={16} style={{ color: 'var(--teal-600)', margin: '0 auto 6px', display: 'block' }} />
-      <div style={{ fontSize: 'var(--text-label)', color: 'var(--text-2)', fontWeight: 500 }}>Drop files or click</div>
+      <Icon name="upload" size={16} style={{ color: 'var(--cream-accent)', margin: '0 auto 6px', display: 'block' }} />
+      <div style={{ fontSize: 'var(--text-label)', color: 'var(--ink)', fontWeight: 500 }}>Drop files or click</div>
       <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 6, flexWrap: 'wrap' }}>
         {EXTS.map(e => (
           <span key={e} style={{
             fontFamily: 'var(--font-mono)', fontSize: 'var(--text-nano)', padding: '2px 6px',
-            border: '1px solid var(--border-2)', borderRadius: 'var(--radius-sm)', color: 'var(--text-faint)',
+            border: '1px solid var(--cream-border)', borderRadius: 'var(--radius-sm)', color: 'var(--ink-muted)',
           }}>{e}</span>
         ))}
       </div>
