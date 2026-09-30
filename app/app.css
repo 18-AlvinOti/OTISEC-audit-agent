@@ -55,20 +55,29 @@
   --purple:   #7060A8;
   --purple-bg: rgba(112,96,168,0.10);
 
-  /* ── Body gradient — dark navy → lighter sky-blue mix */
+  /* ── Body gradient — dark navy → lighter sky-blue mix (kept as fallback) */
   --bg-gradient:
     radial-gradient(1200px circle at 12% -15%, rgba(96,165,250,0.28), transparent 55%),
     radial-gradient(900px circle at 115% 10%, rgba(191,219,254,0.14), transparent 55%),
     linear-gradient(180deg, #060B18 0%, #0E2140 42%, #1E4976 78%, #2E6AA6 100%);
 
-  /* ── Dark navy surfaces */
-  --bg-body:       var(--bg-gradient);
-  --bg-app:        var(--bg-gradient);
-  --bg-nav:        #08132A;
-  --bg-tabs:       #0A1830;
-  --bg-sidebar:    #071026;
-  --surface-card:  #0D1E3B;
-  --surface-track: #102544;
+  /* ══════════════════════════════════════════════════════
+     SITE BACKGROUND IMAGE — light architectural photo behind
+     translucent "dark glass" panels. A soft dark scrim unifies
+     the page and keeps the existing light text readable.
+     ══════════════════════════════════════════════════════ */
+  --bg-image:
+    linear-gradient(180deg, rgba(10,16,32,0.34) 0%, rgba(8,13,26,0.46) 100%),
+    url('/site-bg.jpg');
+
+  /* ── Backdrop = image; shell surfaces = translucent dark glass */
+  --bg-body:       var(--bg-image);
+  --bg-app:        transparent;            /* let the body image show through the app shell */
+  --bg-nav:        rgba(9,16,33,0.72);
+  --bg-tabs:       rgba(11,21,42,0.60);
+  --bg-sidebar:    rgba(7,13,28,0.66);
+  --surface-card:  rgba(12,25,52,0.66);
+  --surface-track: rgba(16,30,60,0.55);
 
   /* Gradient fills used across cards / hero */
   --grad-teal-tan:    linear-gradient(135deg, #2E9E82 0%, #8ABFAB 45%, #EFEBDD 100%);
@@ -174,8 +183,19 @@
 body {
   font-family: 'Syne', sans-serif;
   background: var(--bg-body);
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  background-attachment: fixed;
+  background-color: #0E2140; /* fallback while the image loads */
   color: var(--text-body);
   min-height: 100vh;
+}
+
+/* Frosted-glass effect for the semantic shell panels floating on the photo */
+nav, aside {
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
 }
 
 .font-mono { font-family: 'Space Mono', monospace; }

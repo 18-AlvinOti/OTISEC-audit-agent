@@ -160,6 +160,7 @@ export default function Home() {
   const [openAaveSecs, setOpenAaveSecs] = useState<Record<number, boolean>>({})
   const findingsRef = useRef<HTMLDivElement>(null)
 
+  const [effort, setEffort] = useState<'medium' | 'high'>('high')
   const [readmeText, setReadmeText] = useState<string>('')
   const [showReadmePreview, setShowReadmePreview] = useState<boolean>(false)
 
@@ -239,6 +240,7 @@ export default function Home() {
                 code: combinedCode,
                 filename: files.map(f => f.name).join(', '),
                 readme: readmeText,
+                effort,
               }),
             })
 
@@ -663,6 +665,33 @@ export default function Home() {
                   )}
 
                   <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontFamily: 'Space Mono, monospace', fontSize: '9px', color: 'rgba(239,235,221,0.35)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>
+                        Reasoning Effort · Opus 5.5
+                      </span>
+                      <div style={{ display: 'inline-flex', border: '1px solid rgba(46,158,130,0.30)', borderRadius: '8px', overflow: 'hidden' }}>
+                        {(['medium', 'high'] as const).map(lvl => (
+                          <button
+                            key={lvl}
+                            type="button"
+                            disabled={running}
+                            onClick={() => setEffort(lvl)}
+                            style={{
+                              fontFamily: 'Space Mono, monospace', fontSize: '10px', textTransform: 'capitalize',
+                              padding: '6px 18px', border: 'none', cursor: running ? 'default' : 'pointer',
+                              background: effort === lvl ? 'rgba(46,158,130,0.22)' : 'transparent',
+                              color: effort === lvl ? '#8ABFAB' : 'rgba(239,235,221,0.45)',
+                              fontWeight: effort === lvl ? 700 : 400,
+                            }}
+                          >
+                            {lvl}
+                          </button>
+                        ))}
+                      </div>
+                      <span style={{ fontFamily: 'Space Mono, monospace', fontSize: '8px', color: 'rgba(239,235,221,0.25)' }}>
+                        {effort === 'high' ? 'Deeper reasoning · targets 95% confidence' : 'Faster · lower cost'}
+                      </span>
+                    </div>
                     <Button
                       disabled={files.length === 0 || running}
                       onClick={() => runAudit()}

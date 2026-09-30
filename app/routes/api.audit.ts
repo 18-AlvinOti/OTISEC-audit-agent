@@ -3,6 +3,8 @@ import { requireAuthApi } from '@/lib/session.server'
 import { matchImmunefiCases } from '@/lib/immunefiCases'
 import { matchReportCategories } from '@/lib/immunefiReportsIndex'
 import { matchAuditCompetitions } from '@/lib/auditCompetitions'
+import { matchScvList } from '@/lib/scvList'
+import { matchAuditVault } from '@/lib/auditVault'
 import { buildFeatureReport } from '@/lib/solidityFeatures'
 
 const SYSTEM_PROMPT = `You are OTISEC SENTINEL — an elite smart contract security auditor created by Thragg-oti, built on a senior-auditor methodology: mental discipline (Part 1), a twelve-lens attack-surface sweep — nine single-specialty lenses plus three gap-hunter lenses that only fire at the intersection of other lenses (Part 2), a Kalman-filter-inspired probabilistic state-estimation triage for multi-call drift detection (Part 3), a Hidden-Markov-Model-inspired regime classifier that scores each function's risk state from observable code features and weighs risky-to-risky transitions across the call graph (Part 3B), a known-exploit pattern library distilled from real-world incidents, audit-contest findings, paid Immunefi bug-bounty writeups, AND a frequency analysis of 2,148 triaged Immunefi Bounty Boost reports (Part 4), a dedup/completeness discipline since you are simulating 12 specialists in one pass (Part 5), and a mandatory four-gate validation before anything is reported as a finding (Part 6). You also run four specialist sub-passes that are embedded inline with the main audit sweep: SYMMETRY-SNIPER (Part 2-S: deep asymmetry diff across paired operations), X-RAY (Part 0: pre-audit threat model framing and protocol-type profiling before diving into code), SOLIDITY-AUDITOR (Parts 2–6 are built on this foundation — all 12 hacking agents run in one pass), and FIZZ (Part 7: invariant-property generation for stateful fuzzing). You are an attacker, not a defender — when something looks like a bug, deepen the attack; never argue yourself out of one. But nothing ships without surviving the gates.
@@ -170,7 +172,9 @@ Gate 2 — Reachability: if an enforced invariant makes the vulnerable state str
 Gate 3 — Trigger: if only a trusted role can trigger it — DEMOTE to LEAD, UNLESS the body names a concrete unprivileged amplifier (a race where an unprivileged user exploits the window before an admin update propagates; a retroactive sweep of an already-credited value; an asymmetric formula an unprivileged actor profits from; an access gap where the missing guard IS the bug). No amplifier named for an admin-only trigger — REJECT entirely, do not even emit as a LEAD.
 Gate 4 — Impact: self-harm only — REJECT. Dust-level with no compounding — DEMOTE to LEAD, but ONLY after applying the Part 3 compounding check (walk N repeated calls; if the drift is genuinely bounded across repetition, it's dust — if it compounds into a material amount, it is NOT dust, carry it through as material loss). Material loss to an identifiable victim, whether from one call or from Part 3's compounding across a sequence — CONFIRMED.
 
-Confidence scoring for CONFIRMED findings: start at 100, deduct 20 for a partial attack path, 15 for bounded/non-compounding impact (does not apply if Part 3's compounding check already confirmed the drift is material over N calls — that IS the impact, not a deduction), 10 for requiring a specific-but-achievable state. A finding independently corroborated by both a Part 2 lens AND the Part 3 state-estimation check does not get a bonus added, but should not be arbitrarily deducted either — corroboration justifies keeping the score at its lens-derived level. Findings scoring ≥80 get a full mitigation; below 80 still gets every field filled honestly, but flag lower confidence in "confidence".
+Confidence scoring for CONFIRMED findings: start at 100, deduct 20 for a partial attack path, 15 for bounded/non-compounding impact (does not apply if Part 3's compounding check already confirmed the drift is material over N calls — that IS the impact, not a deduction), 10 for requiring a specific-but-achievable state. A finding independently corroborated by both a Part 2 lens AND the Part 3 state-estimation check does not get a bonus added, but should not be arbitrarily deducted either — corroboration justifies keeping the score at its lens-derived level.
+
+CONFIDENCE TARGET — 95%: This engine optimizes for precision over recall. Only emit a finding in the "findings" array when its confidence is ≥95 — i.e. the attack path is complete and concrete, the impact is material and demonstrated, and the PoC would actually compile and prove the exploited delta against the uploaded code. Any candidate below 95 confidence — plausible but with a partial path, an unproven precondition, or a PoC you cannot fully substantiate — MUST be demoted to "leads" instead of emitted as a finding. Do not pad the findings array to hit a count; a high-precision empty (or single-item) findings array plus honest leads is the correct output when nothing clears 95. Every emitted finding still fills every field honestly and reports its true integer score in "confidence".
 
 ════════════════════════════════════
 PoC CONSTRUCTION STANDARD (Foundry — governs the "Proof of concept" field of every CONFIRMED finding)
@@ -367,12 +371,9 @@ async function callGemini(apiKey: string, userPrompt: string) {
   )
 }
 
-async function callAnthropic(apiKey: string, userPrompt: string) {
-  // Use the model env var if set, otherwise pick the latest stable Sonnet.
-  // Note: 'claude-sonnet-5' is NOT a valid model ID — the correct IDs are
-  // 'claude-sonnet-4-5' or 'claude-opus-4-5'. We default to sonnet-4-5
-  // which is the most cost-effective model that fits our 16k token budget.
-  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
+async function callAnthropic(apiKey: string, userPrompt: string, reasoningEffort: 'medium' | 'high' = 'medium') {
+  // Default to Claude Opus 5.5 (the current, most capable Opus). Override via ANTHROPIC_MODEL.
+  const model = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5'
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
@@ -390,6 +391,10 @@ async function callAnthropic(apiKey: string, userPrompt: string) {
         model,
         max_tokens: 16000,
         system: SYSTEM_PROMPT,
+        // Opus 5.5: thinking is always on (adaptive); depth is controlled by output_config.effort.
+        // effort is GA (no beta header). Medium = default; High = deeper reasoning for the 95% bar.
+        thinking: { type: 'adaptive' },
+        output_config: { effort: reasoningEffort },
         messages: [{ role: 'user', content: userPrompt }],
       }),
     })
@@ -723,11 +728,15 @@ export async function action({ request }: Route.ActionArgs) {
   await requireAuthApi(request)
 
   try {
-    const { code, filename, readme } = await request.json()
+    const { code, filename, readme, effort } = await request.json()
 
     if (!code || typeof code !== 'string') {
       return Response.json({ error: 'No code provided' }, { status: 400 })
     }
+
+    // Reasoning effort for Claude Opus 5.5 — the UI exposes Medium (faster/cheaper) and
+    // High (deeper reasoning). Anything else falls back to the model default (medium).
+    const reasoningEffort: 'medium' | 'high' = effort === 'high' ? 'high' : 'medium'
 
     const readmeContext = readme && typeof readme === 'string' && readme.trim()
       ? `\n\n════════════════════════════════════\nREADME & ARCHITECTURE GUIDANCE (Use this protocol documentation to understand system invariants, intended behavior, admin roles, and scope focus):\n════════════════════════════════════\n${readme.trim().slice(0, 20_000)}`
@@ -803,13 +812,34 @@ export async function action({ request }: Route.ActionArgs) {
           .join('\n')}`
       : ''
 
-    const userPrompt = `Analyze this codebase / smart contract (${filename || 'unknown'}) and return the JSON object only:${readmeContext}\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}`
+    // Same corroboration technique, sourced from sirhashalot/SCV-List — a CVE-like database of
+    // ~155 REAL mainnet smart-contract vulnerabilities (see app/lib/scvList.ts). Strict
+    // mainnet-only inclusion rule makes these high-signal "this pattern really lost funds" precedent.
+    const scvMatches = matchScvList(truncated, 4)
+    const scvContext = scvMatches.length
+      ? `\n\nReal-world precedent from sirhashalot/SCV-List (~155 mainnet-disclosed vulnerabilities, strict on-chain inclusion rule) — corroborating evidence only:\n${scvMatches
+          .map((c) => `- ${c.category} (${c.count}+ mainnet cases)${c.examples.length ? ': ' + c.examples.map((e) => `${e.protocol} — ${e.pattern}`).join('; ') : ''}`)
+          .join('\n')}`
+      : ''
+
+    // Targeted DETECTION heuristics (not precedent) from radcipher/auditvault exploit-playbooks
+    // + pattern-recognition drills (see app/lib/auditVault.ts). For each vuln class the uploaded
+    // code trips, hand the model that class's grep signatures and the auditor's checkpoint
+    // question to force a specific look — still a lead to confirm with the 12-lens sweep.
+    const vaultMatches = matchAuditVault(truncated, 5)
+    const vaultContext = vaultMatches.length
+      ? `\n\nTargeted detection heuristics from audit exploit-playbooks (radcipher/auditvault) — the code below tripped these vuln-class signatures. For each, run the checkpoint against the actual code before concluding; a tripped signature is a lead, not a finding:\n${vaultMatches
+          .map((p) => `- ${p.category}\n    checkpoint: ${p.checkpoint}\n    grep: ${p.grepHints}`)
+          .join('\n')}`
+      : ''
+
+    const userPrompt = `Analyze this codebase / smart contract (${filename || 'unknown'}) and return the JSON object only:${readmeContext}\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}${scvContext}${vaultContext}`
 
     // Cascade: prioritize NVIDIA (z-ai/glm-5.3-flash) if configured, then Gemini, then Anthropic.
     const providers: Array<{ name: string; run: () => Promise<string> }> = []
     if (nvidiaKey) providers.push({ name: 'NVIDIA', run: () => callNvidia(nvidiaKey, userPrompt) })
     if (geminiKey) providers.push({ name: 'Gemini', run: () => callGemini(geminiKey, userPrompt) })
-    if (anthropicKey) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey, userPrompt) })
+    if (anthropicKey) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey, userPrompt, reasoningEffort) })
 
     let rawText = ''
     let lastError: unknown = null
