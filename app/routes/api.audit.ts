@@ -376,6 +376,25 @@ async function callAnthropic(apiKey: string, userPrompt: string, reasoningEffort
   // Default to Claude Opus 5.5 (the current, most capable Opus). Override via ANTHROPIC_MODEL.
   const model = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5'
 
+  // Two auth modes:
+  //  1. API key (x-api-key)  — pay-as-you-go API credits.
+  //  2. OAuth bearer token   — draws from a Claude Pro/Max subscription's limits (the same
+  //     mechanism Claude Code uses). Set ANTHROPIC_AUTH_TOKEN to a subscription OAuth access
+  //     token (e.g. from `ant auth print-credentials --access-token`). Requires the oauth beta
+  //     header. NOTE: subscription tokens may be scoped to first-party tools; Anthropic can
+  //     reject third-party use, and access tokens are short-lived (refresh them periodically).
+  const oauthToken = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_OAUTH_TOKEN
+  const authHeaders: Record<string, string> = oauthToken
+    ? { Authorization: `Bearer ${oauthToken}`, 'anthropic-beta': 'oauth-2025-04-20' }
+    : {
+        'x-api-key': apiKey,
+        // Org-level (unscoped) API keys require a workspace id header. Workspace-scoped keys
+        // don't need it. Set ANTHROPIC_WORKSPACE_ID when using an unscoped key.
+        ...(process.env.ANTHROPIC_WORKSPACE_ID
+          ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID }
+          : {}),
+      }
+
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
 
@@ -385,8 +404,8 @@ async function callAnthropic(apiKey: string, userPrompt: string, reasoningEffort
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        ...authHeaders,
       },
       body: JSON.stringify({
         model,
@@ -747,11 +766,14 @@ export async function action({ request }: Route.ActionArgs) {
     // connector sets by default, so a mis-cased env var doesn't silently drop the provider.
     const geminiKey = process.env.GEMINI_API_KEY || process.env.gemini
     const anthropicKey = process.env.ANTHROPIC_API_KEY
+    // Subscription OAuth token (draws from Claude Pro/Max limits) is an alternative to the API key.
+    const anthropicOAuth = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_OAUTH_TOKEN
+    const anthropicEnabled = !!(anthropicKey || anthropicOAuth)
     const nvidiaKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_KEY
 
-    if (!geminiKey && !anthropicKey && !nvidiaKey) {
+    if (!geminiKey && !anthropicEnabled && !nvidiaKey) {
       return Response.json(
-        { error: 'No LLM provider configured — set GEMINI_API_KEY, ANTHROPIC_API_KEY, or NVIDIA_API_KEY in your environment / .env file.' },
+        { error: 'No LLM provider configured — set GEMINI_API_KEY, ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN), or NVIDIA_API_KEY in your environment / .env file.' },
         { status: 500 }
       )
     }
@@ -838,7 +860,7 @@ export async function action({ request }: Route.ActionArgs) {
 
     // Cascade: prioritize Anthropic (Claude Opus 5.5) if configured, then NVIDIA, then Gemini.
     const providers: Array<{ name: string; run: () => Promise<string> }> = []
-    if (anthropicKey) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey, userPrompt, reasoningEffort) })
+    if (anthropicEnabled) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey || '', userPrompt, reasoningEffort) })
     if (nvidiaKey) providers.push({ name: 'NVIDIA', run: () => callNvidia(nvidiaKey, userPrompt) })
     if (geminiKey) providers.push({ name: 'Gemini', run: () => callGemini(geminiKey, userPrompt) })
 
