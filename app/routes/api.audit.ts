@@ -241,10 +241,11 @@ Schema:
 Maximum 4 findings ordered by confidence descending, maximum 4 leads. Every finding's "poc" must contain a concrete runnable test — no proof means it belongs in "leads" instead.`
 
 // Google Gemini — preferred provider (large context, no tight TPM ceiling).
-// Defaults to gemini-1.5-flash (stable free-tier model) with fallback to gemini-1.5-pro and gemini-2.0-flash.
+// Defaults to gemini-2.5-flash with fallback to the current 2.5 line. The legacy 1.5 / 2.0
+// models are retired (404: "model is no longer available"), so they are NOT used as fallbacks.
 async function callGemini(apiKey: string, userPrompt: string) {
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash'
-  const candidateModels = [primaryModel, 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash']
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  const candidateModels = [...new Set([primaryModel, 'gemini-2.5-flash', 'gemini-2.5-pro'])]
   const modelsToTry = Array.from(new Set(candidateModels))
 
   let lastErrText = ''
@@ -842,20 +843,33 @@ export async function action({ request }: Route.ActionArgs) {
     if (geminiKey) providers.push({ name: 'Gemini', run: () => callGemini(geminiKey, userPrompt) })
 
     let rawText = ''
-    let lastError: unknown = null
+    let servedBy = ''
+    // Collect EVERY provider's failure (not just the last) so a silent primary-provider
+    // failure — e.g. Anthropic/Opus 400/401 — is visible instead of being masked by the
+    // last provider's error in the cascade.
+    const providerErrors: string[] = []
     for (const provider of providers) {
       try {
-        rawText = await provider.run()
-        if (rawText.trim()) break
+        const out = await provider.run()
+        if (out.trim()) { rawText = out; servedBy = provider.name; break }
+        providerErrors.push(`${provider.name}: returned an empty response`)
       } catch (err) {
-        lastError = err
+        let detail: string
+        if (err instanceof Response) detail = (await err.text().catch(() => '')) || `HTTP ${err.status}`
+        else if (err instanceof Error) detail = err.message
+        else detail = String(err)
+        providerErrors.push(`${provider.name}: ${detail.slice(0, 300)}`)
       }
     }
 
     if (!rawText.trim()) {
-      if (lastError instanceof Response) return lastError
-      const msg = lastError instanceof Error ? lastError.message : 'Empty response from all providers'
-      return Response.json({ error: `LLM provider error: ${msg}` }, { status: 502 })
+      const attempted = providers.map((p) => p.name)
+      const skipped = ['Anthropic', 'NVIDIA', 'Gemini'].filter((n) => !attempted.includes(n))
+      return Response.json({
+        error: `All ${providers.length} configured LLM provider(s) failed. ${providerErrors.join(' — ')}`,
+        providersTried: attempted,
+        providersNotConfigured: skipped,
+      }, { status: 502 })
     }
 
     // Strip markdown fences if present
@@ -942,6 +956,9 @@ export async function action({ request }: Route.ActionArgs) {
       leads: Array.isArray(leads) ? leads : [],
       soloditRefs,
       source: 'live',
+      // Which provider actually served this audit (Anthropic = Claude Opus 5.5 when it wins the cascade).
+      servedBy,
+      model: servedBy === 'Anthropic' ? (process.env.ANTHROPIC_MODEL || 'claude-opus-5-5') : undefined,
     })
   } catch (err: unknown) {
     if (err instanceof Response) return err
