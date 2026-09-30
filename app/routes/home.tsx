@@ -125,14 +125,14 @@ const PROTOS: { k: Proto; label: string; icon: string }[] = [
 // from the findings whose "prob" tags fall in that dimension's model list (see scoreDims below);
 // in demo mode it falls back to these baseline values.
 const SCORE_DIMS: { l: string; v: number; models: string[] }[] = [
-  { l: 'Oracle Safety', v: 72, models: ['Log-Normal', 'Exponential'] },
-  { l: 'Access Control', v: 58, models: ['Game Theory', 'Binomial'] },
-  { l: 'Reentrancy Guards', v: 81, models: ['Markov Chain', 'Kalman Filter', 'Hidden Markov Model'] },
-  { l: 'Arithmetic Safety', v: 75, models: ['Normal / Gaussian', 'Beta Distribution'] },
-  { l: 'Flash Loan Risk', v: 49, models: ['Poisson Process', 'Monte Carlo', 'Copula Models'] },
-  { l: 'Liquidation Logic', v: 63, models: ['Weibull Distribution', 'Queueing Theory'] },
-  { l: 'Token Integration', v: 55, models: ['Bayesian Inference', 'Geometric'] },
-  { l: 'Governance Risk', v: 68, models: ['Pareto / Power Law'] },
+  { l: 'Oracle Safety', v: 84, models: ['Log-Normal', 'Exponential'] },
+  { l: 'Access Control', v: 78, models: ['Game Theory', 'Binomial'] },
+  { l: 'Reentrancy Guards', v: 88, models: ['Markov Chain', 'Kalman Filter', 'Hidden Markov Model'] },
+  { l: 'Arithmetic Safety', v: 85, models: ['Normal / Gaussian', 'Beta Distribution'] },
+  { l: 'Flash Loan Risk', v: 74, models: ['Poisson Process', 'Monte Carlo', 'Copula Models'] },
+  { l: 'Liquidation Logic', v: 80, models: ['Weibull Distribution', 'Queueing Theory'] },
+  { l: 'Token Integration', v: 76, models: ['Bayesian Inference', 'Geometric'] },
+  { l: 'Governance Risk', v: 82, models: ['Pareto / Power Law'] },
 ]
 
 const SEV_SCORE_WEIGHT: Record<string, number> = { CRITICAL: 22, HIGH: 15, MEDIUM: 9, LOW: 4, INFO: 1 }
