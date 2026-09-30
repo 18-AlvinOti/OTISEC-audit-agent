@@ -835,11 +835,11 @@ export async function action({ request }: Route.ActionArgs) {
 
     const userPrompt = `Analyze this codebase / smart contract (${filename || 'unknown'}) and return the JSON object only:${readmeContext}\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}${scvContext}${vaultContext}`
 
-    // Cascade: prioritize NVIDIA (z-ai/glm-5.3-flash) if configured, then Gemini, then Anthropic.
+    // Cascade: prioritize Anthropic (Claude Opus 5.5) if configured, then NVIDIA, then Gemini.
     const providers: Array<{ name: string; run: () => Promise<string> }> = []
+    if (anthropicKey) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey, userPrompt, reasoningEffort) })
     if (nvidiaKey) providers.push({ name: 'NVIDIA', run: () => callNvidia(nvidiaKey, userPrompt) })
     if (geminiKey) providers.push({ name: 'Gemini', run: () => callGemini(geminiKey, userPrompt) })
-    if (anthropicKey) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey, userPrompt, reasoningEffort) })
 
     let rawText = ''
     let lastError: unknown = null
