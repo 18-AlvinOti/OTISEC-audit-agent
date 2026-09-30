@@ -13,7 +13,7 @@ export const SITE_LINKS = [
 /** Persistent top site nav — sits above the app/product chrome, links across the whole site. */
 export function SiteNav() {
   return (
-    <nav style={{
+    <nav data-chrome="cream" style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '10px 20px', borderBottom: '1px solid var(--cream-border)', background: 'var(--cream-bg)',
       backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',

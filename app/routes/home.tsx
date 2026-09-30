@@ -4,7 +4,6 @@ import { Form } from 'react-router'
 import { AlertTriangle, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
 import FindingCard from '@/components/FindingCard'
 import { Icon } from '@/components/Icon'
-import { BrandMark } from '@/components/BrandMark'
 import { Button } from '@/components/Button'
 import { Tabs } from '@/components/Tabs'
 import { SbSection } from '@/components/SbSection'
@@ -360,21 +359,11 @@ export default function Home() {
       <SiteNav />
 
       {/* NAV */}
-      <nav className="flex items-center justify-between px-5 py-3 border-b sticky top-0 z-50"
+      <nav data-chrome="cream" className="flex items-center justify-between px-5 py-2 border-b sticky top-0 z-50"
         style={{ background: 'var(--cream-bg)', borderColor: 'var(--cream-border)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
-        <div className="flex items-center gap-3">
-          <div style={{
-            width: '32px', height: '32px', borderRadius: '8px',
-            background: 'linear-gradient(135deg, rgba(46,158,130,0.18), rgba(200,205,168,0.08))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '1px solid rgba(200,205,168,0.15)',
-          }}>
-            <BrandMark size={16} />
-          </div>
-          <div>
-            <div className="font-mono font-bold text-sm tracking-widest" style={{ color: 'var(--ink)' }}>OTISEC SENTINEL</div>
-            <div className="font-mono" style={{ fontSize: '9px', color: 'var(--ink-muted)' }}>Thragg-oti · Smart Contract Auditor v2.2</div>
-          </div>
+        {/* Brand lives once, in the SiteNav above — this band is context + tools only. */}
+        <div className="font-mono uppercase tracking-widest" style={{ fontSize: '9px', color: 'var(--fg-muted)' }}>
+          Smart Contract Auditor · v2.2
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {[
@@ -385,7 +374,7 @@ export default function Home() {
             { label: 'HackenProof', href: 'https://hackenproof.com/' },
           ].map(l => (
             <a key={l.href} href={l.href} target="_blank" rel="noreferrer"
-              className="font-mono text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1"
+              className="font-mono text-tiny px-2.5 py-1 rounded transition-colors flex items-center gap-1"
               style={{ border: '1px solid var(--cream-border)', background: 'var(--cream-surface)', color: 'var(--ink)' }}
               onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--cream-hover)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--cream-accent)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--cream-surface)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--ink)'; }}
@@ -420,14 +409,14 @@ export default function Home() {
 
         {/* SIDEBAR - Only show when audit has run */}
         {tab === 'audit' && hasRun && (
-          <aside style={{ width: '224px', flexShrink: 0, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--cream-border)', color: 'var(--ink)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+          <aside data-chrome="cream" style={{ width: '224px', flexShrink: 0, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--cream-border)', color: 'var(--ink)', boxShadow: '2px 0 12px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
             <SbSection label="Upload Contract">
               <Dropzone rootProps={getRootProps()} inputProps={getInputProps()} active={isDragActive} />
 
               {files.length > 0 && (
                 <>
                   {/* Scope summary */}
-                  <div className="mt-2 font-mono text-[10px]" style={{ color: 'var(--ink)' }}>
+                  <div className="mt-2 font-mono text-tiny" style={{ color: 'var(--ink)' }}>
                     <span style={{ fontWeight: 700 }}>In scope {scope.inScope.length}</span>
                     <span style={{ color: 'var(--ink-muted)' }}> · {scope.excluded.length} excluded</span>
                   </div>
@@ -437,7 +426,7 @@ export default function Home() {
                     {scope.byFolder.map(group => (
                       <div key={group.folder}>
                         {scope.byFolder.length > 1 && (
-                          <div className="font-mono text-[8px] uppercase tracking-wider px-1" style={{ color: 'var(--ink-muted)' }} title={group.folder}>
+                          <div className="font-mono text-nano uppercase tracking-wider px-1" style={{ color: 'var(--ink-muted)' }} title={group.folder}>
                             {group.folder} ({group.files.length})
                           </div>
                         )}
@@ -445,8 +434,8 @@ export default function Home() {
                           const idx = files.indexOf(f)
                           return (
                             <div key={f.name} className="flex items-center gap-1.5 rounded px-2 py-1" style={{ background: 'var(--cream-hover)' }} title={f.name}>
-                              <span className="font-mono text-[8px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--cream-accent)', background: 'var(--cream-badge)' }}>.{f.name.split('.').pop()}</span>
-                              <span className="text-[10px] truncate flex-1" style={{ color: 'var(--ink)' }}>{relativeName(f.name, group.folder)}</span>
+                              <span className="font-mono text-nano px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--cream-accent)', background: 'var(--cream-badge)' }}>.{f.name.split('.').pop()}</span>
+                              <span className="text-tiny truncate flex-1" style={{ color: 'var(--ink)' }}>{relativeName(f.name, group.folder)}</span>
                               <button onClick={() => removeFile(idx)} style={{ color: 'var(--ink-muted)' }} className="hover:opacity-60 transition-opacity flex-shrink-0">
                                 <Icon name="x" size={10} />
                               </button>
@@ -460,7 +449,7 @@ export default function Home() {
                   {/* Excluded group — collapsed, with per-file include toggle */}
                   {scope.excluded.length > 0 && (
                     <div className="mt-1.5">
-                      <button onClick={() => setShowExcluded(v => !v)} className="font-mono text-[9px] flex items-center gap-1" style={{ color: 'var(--ink-muted)' }}>
+                      <button onClick={() => setShowExcluded(v => !v)} className="font-mono text-micro flex items-center gap-1" style={{ color: 'var(--ink-muted)' }}>
                         <Icon name={showExcluded ? 'chevron-down' : 'chevron-right'} size={9} />
                         Excluded ({scope.excluded.length})
                       </button>
@@ -468,9 +457,9 @@ export default function Home() {
                         <div className="mt-1 space-y-1" style={{ maxHeight: 200, overflowY: 'auto' }}>
                           {scope.excluded.map(f => (
                             <div key={f.name} className="flex items-center gap-1.5 rounded px-2 py-1" style={{ background: 'transparent' }} title={f.name}>
-                              <span className="text-[9px] truncate flex-1" style={{ color: 'var(--ink-muted)' }}>{f.name}</span>
+                              <span className="text-micro truncate flex-1" style={{ color: 'var(--ink-muted)' }}>{f.name}</span>
                               <button onClick={() => toggleInclude(f.name)} title="Include in scope"
-                                className="font-mono text-[9px] px-1.5 rounded flex-shrink-0"
+                                className="font-mono text-micro px-1.5 rounded flex-shrink-0"
                                 style={{ color: 'var(--cream-accent)', border: '1px solid var(--cream-border)' }}>
                                 + include
                               </button>
@@ -497,7 +486,7 @@ export default function Home() {
             {detectedProtocol && (
               <>
                 <SbSection label="Detected Protocol">
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-teal-900/30 border border-teal-500/20 text-teal-300 text-[11px] font-mono">
+                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-teal-900/30 border border-teal-500/20 text-teal-300 text-label font-mono">
                     <span>🏷️</span>
                     <span className="truncate">{detectedProtocol}</span>
                   </div>
@@ -508,14 +497,14 @@ export default function Home() {
 
             <SbSection label="Findings">
               {findings.length === 0
-                ? <p className="text-[10px] px-1" style={{ color: 'var(--ink-muted)' }}>No findings yet</p>
+                ? <p className="text-tiny px-1" style={{ color: 'var(--ink-muted)' }}>No findings yet</p>
                 : findings.map((f, i) => (
                   <button key={i} onClick={() => { setTab('audit'); findingsRef.current?.scrollIntoView() }}
                     className="flex items-center gap-1.5 w-full px-2 py-1 rounded text-left transition-colors"
                     style={{ color: 'var(--ink)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--cream-hover)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}>
-                    <span className="text-[10px] flex-1 truncate font-mono" style={{ color: 'var(--ink)' }}>{f.id}</span>
+                    <span className="text-tiny flex-1 truncate font-mono" style={{ color: 'var(--ink)' }}>{f.id}</span>
                     <SevBadge sev={f.sev} compact />
                   </button>
                 ))
@@ -540,7 +529,7 @@ export default function Home() {
                 { label: 'Immunefi', href: 'https://immunefi.com/leaderboard/' },
               ].map(l => (
                 <a key={l.href} href={l.href} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-1.5 text-[10px] py-0.5 transition-colors"
+                  className="flex items-center gap-1.5 text-tiny py-0.5 transition-colors"
                   style={{ color: 'var(--ink-muted)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--cream-accent)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--ink-muted)' }}>
@@ -938,9 +927,9 @@ export default function Home() {
               <div className="flex items-baseline justify-between mb-4">
                 <h2 className="text-base font-semibold text-white">Audit Dashboard</h2>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-white/40">{auditMeta}</span>
+                  <span className="font-mono text-tiny text-white/40">{auditMeta}</span>
                   {hasRun && (
-                    <span className={`font-mono text-[9px] px-2 py-0.5 rounded border ${isLive ? 'bg-teal-900/40 text-teal-300 border-teal-700/50' : 'bg-amber-900/40 text-amber-300 border-amber-700/50'}`}>
+                    <span className={`font-mono text-micro px-2 py-0.5 rounded border ${isLive ? 'bg-teal-900/40 text-teal-300 border-teal-700/50' : 'bg-amber-900/40 text-amber-300 border-amber-700/50'}`}>
                       {isLive ? 'LIVE' : 'DEMO'}
                     </span>
                   )}
@@ -968,22 +957,22 @@ export default function Home() {
               {files.length > 0 && (
                 <div className="mb-4">
                   <div className="flex items-center flex-wrap gap-2">
-                    <span className="font-mono text-[11px] text-white/80">
+                    <span className="font-mono text-label text-white/80">
                       <strong>{scope.inScope.length}</strong> file{scope.inScope.length === 1 ? '' : 's'} in scope
                       <span className="text-white/40"> · {scope.excluded.length} excluded</span>
                     </span>
                     {scope.langBreakdown.map(l => (
-                      <span key={l.ext} className="font-mono text-[9px] px-2 py-0.5 rounded bg-teal-900/30 text-teal-300 border border-teal-700/30">
+                      <span key={l.ext} className="font-mono text-micro px-2 py-0.5 rounded bg-teal-900/30 text-teal-300 border border-teal-700/30">
                         {l.ext} {l.count}
                       </span>
                     ))}
-                    <button onClick={() => setShowScopeFiles(v => !v)} className="font-mono text-[9px] text-white/40 hover:text-teal-300 flex items-center gap-1 transition-colors">
+                    <button onClick={() => setShowScopeFiles(v => !v)} className="font-mono text-micro text-white/40 hover:text-teal-300 flex items-center gap-1 transition-colors">
                       <Icon name={showScopeFiles ? 'chevron-down' : 'chevron-right'} size={9} />
                       {showScopeFiles ? 'Hide files' : 'Show files'}
                     </button>
                   </div>
                   {showScopeFiles && (
-                    <div className="mt-2 rounded-lg border border-white/10 bg-black/20 p-2 font-mono text-[10px] text-white/60" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                    <div className="mt-2 rounded-lg border border-white/10 bg-black/20 p-2 font-mono text-tiny text-white/60" style={{ maxHeight: 240, overflowY: 'auto' }}>
                       {scope.inScope.map(f => {
                         const idx = files.indexOf(f)
                         return (
@@ -1034,7 +1023,7 @@ export default function Home() {
               {apiError && (
                 <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-800/50 text-xs text-red-300">
                   <strong>API Error:</strong> {apiError}
-                  <br /><span className="opacity-70 text-[10px]">Showing demo findings as fallback.</span>
+                  <br /><span className="opacity-70 text-tiny">Showing demo findings as fallback.</span>
                 </div>
               )}
 
@@ -1051,14 +1040,14 @@ export default function Home() {
                   <div className="flex items-center gap-2 mb-3">
                     <AlertTriangle size={13} className="text-amber-400" />
                     <h3 className="text-sm font-semibold text-white/80">Leads for manual review</h3>
-                    <span className="font-mono text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 text-white/30">{leads.length}</span>
+                    <span className="font-mono text-micro px-1.5 py-0.5 rounded-full bg-white/5 text-white/30">{leads.length}</span>
                   </div>
                   <div className="space-y-2">
                     {leads.map((l, i) => (
                       <div key={i} className="rounded-xl border border-amber-800/30 bg-amber-900/10 p-3">
                         <div className="text-xs font-medium text-amber-200 mb-1">{l.title}</div>
-                        <div className="font-mono text-[9px] text-amber-400/70 mb-1.5">{l.codeSmells}</div>
-                        <div className="text-[11px] text-white/50 leading-relaxed">{l.description}</div>
+                        <div className="font-mono text-micro text-amber-400/70 mb-1.5">{l.codeSmells}</div>
+                        <div className="text-label text-white/50 leading-relaxed">{l.description}</div>
                       </div>
                     ))}
                   </div>
@@ -1071,18 +1060,18 @@ export default function Home() {
                   <div className="flex items-center gap-2 mb-3">
                     <Icon name="external-link" size={12} style={{ color: 'var(--teal-400)' }} />
                     <h3 className="text-sm font-semibold text-white/80">Real-world precedent (Solodit)</h3>
-                    <span className="font-mono text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 text-white/30">{soloditRefs.length}</span>
+                    <span className="font-mono text-micro px-1.5 py-0.5 rounded-full bg-white/5 text-white/30">{soloditRefs.length}</span>
                   </div>
                   <div className="space-y-2">
                     {soloditRefs.map((r, i) => (
                       <a key={i} href={r.sourceLink} target="_blank" rel="noreferrer"
                         className="block rounded-xl border border-white/8 bg-white/[0.02] p-3 hover:border-teal-700/40 transition-colors">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-[8px] px-1.5 py-0.5 rounded bg-white/5 text-white/40 uppercase">{r.severity}</span>
+                          <span className="font-mono text-nano px-1.5 py-0.5 rounded bg-white/5 text-white/40 uppercase">{r.severity}</span>
                           <span className="text-xs font-medium text-white/80 flex-1">{r.title}</span>
                           <Icon name="external-link" size={9} style={{ color: 'var(--text-faint)' }} />
                         </div>
-                        <div className="text-[10px] text-white/40">{r.firm} audit of {r.protocol}{r.tags.length > 0 ? ` · ${r.tags.join(', ')}` : ''}</div>
+                        <div className="text-tiny text-white/40">{r.firm} audit of {r.protocol}{r.tags.length > 0 ? ` · ${r.tags.join(', ')}` : ''}</div>
                       </a>
                     ))}
                   </div>
@@ -1097,14 +1086,14 @@ export default function Home() {
             <div className="p-5">
               <div className="flex items-baseline justify-between mb-4">
                 <h2 className="text-base font-semibold text-white">Probability Models</h2>
-                <span className="font-mono text-[10px] text-white/40">17 models · integrated into audit scoring</span>
+                <span className="font-mono text-tiny text-white/40">17 models · integrated into audit scoring</span>
               </div>
               <input
                 type="text"
                 placeholder="Search models, applications, risk scenarios..."
                 value={modelSearch}
                 onChange={e => setModelSearch(e.target.value)}
-                className="w-full mb-4 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder-white/30 outline-none focus:border-teal-600/50 font-mono text-[11px]"
+                className="w-full mb-4 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder-white/30 outline-none focus:border-teal-600/50 font-mono text-label"
               />
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filteredModels.map(m => (
@@ -1117,21 +1106,21 @@ export default function Home() {
                       <div className="text-sm font-medium text-white/90">{m.name}</div>
                     </div>
                     <div className="text-xs text-white/50 mb-2">{m.desc}</div>
-                    <div className="font-mono text-[9px] bg-black/30 rounded px-2 py-1 text-white/40">{m.formula}</div>
+                    <div className="font-mono text-micro bg-black/30 rounded px-2 py-1 text-white/40">{m.formula}</div>
                     {openModels[m.id] && (
                       <div className="mt-3 space-y-3">
                         <div>
-                          <div className="font-mono text-[9px] font-bold uppercase tracking-wider text-teal-500 mb-1.5">Applications</div>
-                          {m.apps.map((a, i) => <div key={i} className="text-[11px] text-white/50 leading-relaxed">· {a}</div>)}
+                          <div className="font-mono text-micro font-bold uppercase tracking-wider text-teal-500 mb-1.5">Applications</div>
+                          {m.apps.map((a, i) => <div key={i} className="text-label text-white/50 leading-relaxed">· {a}</div>)}
                         </div>
                         <div className="bg-orange-900/20 border border-orange-800/30 rounded-lg p-2.5">
-                          <div className="font-mono text-[9px] font-bold text-orange-400 uppercase tracking-wider mb-1">Risk Scenarios</div>
-                          {m.risks.map((r, i) => <div key={i} className="text-[11px] text-orange-300/80 leading-relaxed">· {r}</div>)}
+                          <div className="font-mono text-micro font-bold text-orange-400 uppercase tracking-wider mb-1">Risk Scenarios</div>
+                          {m.risks.map((r, i) => <div key={i} className="text-label text-orange-300/80 leading-relaxed">· {r}</div>)}
                         </div>
                         {m.aave && (
                           <div className="bg-purple-900/20 border border-purple-800/30 rounded-lg p-2.5">
-                            <div className="font-mono text-[9px] font-bold text-purple-400 uppercase tracking-wider mb-1">Aave V3</div>
-                            <div className="text-[11px] text-purple-300/80 leading-relaxed">{m.aave}</div>
+                            <div className="font-mono text-micro font-bold text-purple-400 uppercase tracking-wider mb-1">Aave V3</div>
+                            <div className="text-label text-purple-300/80 leading-relaxed">{m.aave}</div>
                           </div>
                         )}
                       </div>
@@ -1148,26 +1137,26 @@ export default function Home() {
               <div className="flex items-baseline justify-between mb-4">
                 <h2 className="text-base font-semibold text-white">Aave V2 + V3 Security Checklist</h2>
                 <div className="flex items-center gap-3">
-                  <span className="font-mono text-[10px] text-white/40">{checkedCount}/{totalAaveItems} verified</span>
+                  <span className="font-mono text-tiny text-white/40">{checkedCount}/{totalAaveItems} verified</span>
                   <button onClick={() => {
                     const all: Record<string, boolean> = {}
                     AAVE_CHECKLIST.forEach((s, si) => s.items.forEach((_, ii) => { all[`${si}-${ii}`] = true }))
                     setCheckedItems(all)
-                  }} className="font-mono text-[10px] px-2 py-1 rounded bg-teal-900/40 text-teal-300 border border-teal-700/40 hover:bg-teal-800/40 transition-all">
+                  }} className="font-mono text-tiny px-2 py-1 rounded bg-teal-900/40 text-teal-300 border border-teal-700/40 hover:bg-teal-800/40 transition-all">
                     Check All
                   </button>
-                  <button onClick={() => setCheckedItems({})} className="font-mono text-[10px] px-2 py-1 rounded bg-red-900/20 text-red-400 border border-red-800/30 hover:bg-red-900/30 transition-all">
+                  <button onClick={() => setCheckedItems({})} className="font-mono text-tiny px-2 py-1 rounded bg-red-900/20 text-red-400 border border-red-800/30 hover:bg-red-900/30 transition-all">
                     Reset
                   </button>
                 </div>
               </div>
               <div className="flex gap-3 mb-4">
                 <a href="https://docs.aave.com/risk/" target="_blank" rel="noreferrer"
-                  className="font-mono text-[10px] px-3 py-1.5 rounded border border-white/10 text-white/50 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1">
+                  className="font-mono text-tiny px-3 py-1.5 rounded border border-white/10 text-white/50 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1">
                   Risk Framework <ExternalLink size={9} />
                 </a>
                 <a href="https://github.com/aave/aave-v3-core" target="_blank" rel="noreferrer"
-                  className="font-mono text-[10px] px-3 py-1.5 rounded border border-white/10 text-white/50 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1">
+                  className="font-mono text-tiny px-3 py-1.5 rounded border border-white/10 text-white/50 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1">
                   V3 Source <ExternalLink size={9} />
                 </a>
               </div>
@@ -1177,9 +1166,9 @@ export default function Home() {
                     <button
                       onClick={() => setOpenAaveSecs(p => ({ ...p, [si]: !p[si] }))}
                       className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors">
-                      <span className="font-mono text-[11px] font-bold text-white/70">{sec.section}</span>
+                      <span className="font-mono text-label font-bold text-white/70">{sec.section}</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[9px] text-white/30">{sec.items.length} items</span>
+                        <span className="font-mono text-micro text-white/30">{sec.items.length} items</span>
                         {openAaveSecs[si] ? <ChevronDown size={12} className="text-white/30" /> : <ChevronRight size={12} className="text-white/30" />}
                       </div>
                     </button>
@@ -1191,13 +1180,13 @@ export default function Home() {
                             <div key={ii} className="flex items-start gap-3 p-2.5 rounded-lg border border-white/5 hover:bg-white/3 transition-colors">
                               <button
                                 onClick={() => setCheckedItems(p => ({ ...p, [k]: !p[k] }))}
-                                className={`w-4 h-4 rounded border flex-shrink-0 mt-0.5 flex items-center justify-center text-[9px] transition-all
+                                className={`w-4 h-4 rounded border flex-shrink-0 mt-0.5 flex items-center justify-center text-micro transition-all
                                   ${checkedItems[k] ? 'bg-teal-500 border-teal-500 text-white' : 'border-white/20 hover:border-teal-500/50'}`}>
                                 {checkedItems[k] && '✓'}
                               </button>
                               <div>
                                 <div className="text-xs text-white/80 leading-relaxed">{item.t}</div>
-                                <div className="text-[10px] text-white/35 mt-0.5">Why: {item.w}</div>
+                                <div className="text-tiny text-white/35 mt-0.5">Why: {item.w}</div>
                               </div>
                             </div>
                           )
@@ -1215,18 +1204,18 @@ export default function Home() {
             <div className="p-5">
               <div className="flex items-baseline justify-between mb-4">
                 <h2 className="text-base font-semibold text-white">Vulnerability Matrix</h2>
-                <span className="font-mono text-[10px] text-white/40">SmartBugs + SWC + DASP · probability-weighted · Immunefi + Solodit precedent</span>
+                <span className="font-mono text-tiny text-white/40">SmartBugs + SWC + DASP · probability-weighted · Immunefi + Solodit precedent</span>
               </div>
               <div className="flex gap-2 mb-4 flex-wrap">
                 {(['all', 'High', 'Medium', 'Low'] as const).map(f => (
                   <button key={f} onClick={() => setMatrixFilter(f)}
-                    className={`font-mono text-[10px] px-3 py-1.5 rounded-lg border transition-all capitalize
+                    className={`font-mono text-tiny px-3 py-1.5 rounded-lg border transition-all capitalize
                       ${matrixFilter === f ? 'border-teal-500 text-teal-300 bg-teal-900/20' : 'border-white/10 text-white/40 hover:border-white/20 hover:text-white/60'}`}>
                     {f}
                   </button>
                 ))}
                 <a href="https://swcregistry.io/" target="_blank" rel="noreferrer"
-                  className="font-mono text-[10px] px-3 py-1.5 rounded-lg border border-white/10 text-white/40 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1 ml-auto">
+                  className="font-mono text-tiny px-3 py-1.5 rounded-lg border border-white/10 text-white/40 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1 ml-auto">
                   SWC Registry <ExternalLink size={9} />
                 </a>
               </div>
@@ -1235,7 +1224,7 @@ export default function Home() {
                   <thead>
                     <tr className="border-b border-white/10 bg-white/3">
                       {['Vulnerability', 'Severity', 'SWC / DASP', 'Prob Model', 'Aave Surface', 'Detection', 'Real-World Precedent'].map(h => (
-                        <th key={h} className="text-left px-3 py-2.5 font-mono text-[9px] text-white/40 uppercase tracking-wider">{h}</th>
+                        <th key={h} className="text-left px-3 py-2.5 font-mono text-micro text-white/40 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1244,14 +1233,14 @@ export default function Home() {
                       <tr key={i} className="border-b border-white/5 hover:bg-white/3 transition-colors">
                         <td className="px-3 py-2.5 font-medium text-white/80">{v.n}</td>
                         <td className="px-3 py-2.5">
-                          <span className={`font-mono text-[9px] px-2 py-0.5 rounded border
+                          <span className={`font-mono text-micro px-2 py-0.5 rounded border
                             ${v.s === 'High' ? 'bg-orange-900/30 text-orange-300 border-orange-800/40' :
                               v.s === 'Medium' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-800/40' :
                                 'bg-blue-900/30 text-blue-300 border-blue-800/40'}`}>
                             {v.s}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 font-mono text-[10px]">
+                        <td className="px-3 py-2.5 font-mono text-tiny">
                           {v.swc && v.swc !== '-'
                             ? <a href={`https://swcregistry.io/docs/${v.swc}`} target="_blank" rel="noreferrer"
                               className="text-blue-400 hover:text-teal-300 underline">{v.swc}</a>
@@ -1260,13 +1249,13 @@ export default function Home() {
                           {v.dasp && v.dasp !== '-' && <span className="text-white/30 ml-1">{v.dasp}</span>}
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400 border border-teal-800/30">{v.prob}</span>
+                          <span className="font-mono text-micro px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400 border border-teal-800/30">{v.prob}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-white/50 text-[11px]">{v.aave}</td>
-                        <td className="px-3 py-2.5 font-mono text-[10px] text-white/30">{v.det}</td>
-                        <td className="px-3 py-2.5 text-[10px] text-white/50 min-w-[220px]">
+                        <td className="px-3 py-2.5 text-white/50 text-label">{v.aave}</td>
+                        <td className="px-3 py-2.5 font-mono text-tiny text-white/30">{v.det}</td>
+                        <td className="px-3 py-2.5 text-tiny text-white/50 min-w-[220px]">
                           {v.precedent && <div className="mb-1">🏆 {v.precedent}</div>}
-                          {v.solodit && <span className="font-mono text-[8px] px-1.5 py-0.5 rounded bg-teal-900/20 text-teal-400 border border-teal-800/30">Live Solodit corroboration</span>}
+                          {v.solodit && <span className="font-mono text-nano px-1.5 py-0.5 rounded bg-teal-900/20 text-teal-400 border border-teal-800/30">Live Solodit corroboration</span>}
                           {!v.precedent && !v.solodit && <span className="text-white/20">—</span>}
                         </td>
                       </tr>
@@ -1282,13 +1271,13 @@ export default function Home() {
             <div className="p-5">
               <div className="flex items-baseline justify-between mb-4">
                 <h2 className="text-base font-semibold text-white">ChainLight Web3 Hack Postmortem 2024</h2>
-                <span className="font-mono text-[10px] text-white/40">Key exploit patterns from 2024 analysis</span>
+                <span className="font-mono text-tiny text-white/40">Key exploit patterns from 2024 analysis</span>
               </div>
               <div className="grid grid-cols-3 gap-3 mb-5">
                 {[{ v: '$2.1B', l: 'Total lost 2024' }, { v: '67%', l: 'Logic flaws' }, { v: '41%', l: 'Flash loan involved' }].map(s => (
                   <div key={s.l} className="bg-white/5 rounded-xl p-4 text-center border border-white/8">
                     <div className="font-mono text-xl font-bold text-orange-400">{s.v}</div>
-                    <div className="text-[10px] text-white/40 mt-1">{s.l}</div>
+                    <div className="text-tiny text-white/40 mt-1">{s.l}</div>
                   </div>
                 ))}
               </div>
@@ -1298,12 +1287,12 @@ export default function Home() {
                     <div className="flex items-center gap-3 mb-2">
                       <span className="text-lg">{ins.icon}</span>
                       <span className="text-sm font-medium text-white/90 flex-1">{ins.title}</span>
-                      <span className="font-mono text-[9px] text-white/30">{ins.year}</span>
+                      <span className="font-mono text-micro text-white/30">{ins.year}</span>
                     </div>
                     <p className="text-xs text-white/55 leading-relaxed mb-2">{ins.body}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {ins.tags.map(t => (
-                        <span key={t} className="font-mono text-[9px] px-2 py-0.5 rounded bg-white/5 text-white/35 border border-white/8">{t}</span>
+                        <span key={t} className="font-mono text-micro px-2 py-0.5 rounded bg-white/5 text-white/35 border border-white/8">{t}</span>
                       ))}
                     </div>
                   </div>
@@ -1317,12 +1306,14 @@ export default function Home() {
             <div className="p-5">
               <div className="flex items-baseline justify-between mb-4">
                 <h2 className="text-base font-semibold text-white">Protocol Risk Scoring</h2>
-                <span className="font-mono text-[10px] text-white/40">All 17 probability models weighted across 8 dimensions</span>
+                <span className="font-mono text-tiny text-white/40">All 17 probability models weighted across 8 dimensions</span>
               </div>
               <div className="flex items-center gap-5 p-4 rounded-xl border border-white/8 bg-[#0d1a12] mb-5">
                 <div className={`w-16 h-16 rounded-full border-4 flex items-center justify-center flex-shrink-0
-                  ${overall > 75 ? 'border-teal-500' : overall > 50 ? 'border-yellow-500' : 'border-red-500'}`}>
-                  <span className={`font-mono text-xl font-bold ${overall > 75 ? 'text-teal-400' : overall > 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  ${overall > 75 ? '' : overall > 50 ? 'border-yellow-500' : 'border-red-500'}`}
+                  style={overall > 75 ? { borderColor: 'var(--success)' } : undefined}>
+                  <span className={`font-mono text-xl font-bold ${overall > 75 ? '' : overall > 50 ? 'text-yellow-400' : 'text-red-400'}`}
+                    style={overall > 75 ? { color: 'var(--success)' } : undefined}>
                     {overall}
                   </span>
                 </div>
@@ -1333,11 +1324,11 @@ export default function Home() {
                   </div>
                   <div className="flex gap-2 mt-2">
                     <a href="https://docs.certora.com/" target="_blank" rel="noreferrer"
-                      className="font-mono text-[10px] px-2.5 py-1 rounded border border-white/10 text-white/50 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1">
+                      className="font-mono text-tiny px-2.5 py-1 rounded border border-white/10 text-white/50 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1">
                       Certora Verify <ExternalLink size={9} />
                     </a>
                     <a href="https://github.com/crytic/slither" target="_blank" rel="noreferrer"
-                      className="font-mono text-[10px] px-2.5 py-1 rounded border border-white/10 text-white/50 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1">
+                      className="font-mono text-tiny px-2.5 py-1 rounded border border-white/10 text-white/50 hover:border-teal-600/50 hover:text-teal-300 transition-all flex items-center gap-1">
                       Run Slither <ExternalLink size={9} />
                     </a>
                   </div>
@@ -1347,15 +1338,15 @@ export default function Home() {
                 {scoreDims.map(d => (
                   <div key={d.l} className="flex items-center gap-3">
                     <div className="w-36 flex-shrink-0">
-                      <div className="font-mono text-[10px] text-white/50">{d.l}</div>
-                      <div className="font-mono text-[8px] text-white/25 mt-0.5 truncate" title={d.models.join(' · ')}>{d.models.join(' · ')}</div>
+                      <div className="font-mono text-tiny text-white/50">{d.l}</div>
+                      <div className="font-mono text-nano text-white/25 mt-0.5 truncate" title={d.models.join(' · ')}>{d.models.join(' · ')}</div>
                     </div>
                     <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all duration-700
                         ${d.v > 75 ? 'bg-teal-500' : d.v > 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
                         style={{ width: `${d.v}%` }} />
                     </div>
-                    <div className="font-mono text-[10px] text-white/40 w-12 text-right">{d.v}/100</div>
+                    <div className="font-mono text-tiny text-white/40 w-12 text-right">{d.v}/100</div>
                   </div>
                 ))}
               </div>

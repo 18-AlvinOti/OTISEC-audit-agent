@@ -40,7 +40,7 @@
   --brown-900: #2A1A10;   /* ink brown           */
 
   /* ── Legacy accent aliases (updated to new palette) */
-  --teal:     #2E9E82;
+  --teal:     var(--teal-400);   /* dedupe: was a copy of #2E9E82 */
   --teal-d:   #1B7060;
   --teal-bg:  rgba(46,158,130,0.10);
   --teal-xd:  #082E27;
@@ -162,6 +162,22 @@
   --cream-badge:   #E9E0CC;   /* tab count-badge bg */
   --cream-hover:   #EFE7D4;   /* pill / link hover bg */
 
+  /* ══════════════════════════════════════════════════════
+     SEMANTIC LAYER — the single rule for new code:
+       foreground → var(--fg) / var(--fg-muted)
+       surface    → var(--surface) / var(--surface-border)
+       accent     → var(--brand) (identity) — NEVER for severity/state
+       state      → var(--success) (safe), severity uses --sev-* / --stat-*
+     Defaults below target the DARK work area. Any cream-chrome container sets
+     [data-chrome="cream"] to remap these four tokens (see rule after :root),
+     so a future re-theme is one selector, not dozens of hardcoded colors. */
+  --brand:          var(--teal-400);
+  --success:        #3FB98A;              /* "safe / audit-ready" — distinct from brand teal */
+  --fg:             var(--text-body);
+  --fg-muted:       var(--text-3);
+  --surface:        var(--surface-card);
+  --surface-border: var(--border-2);
+
   /* ── Type */
   --font-sans: 'Syne', sans-serif;
   --font-mono: 'Space Mono', monospace;
@@ -188,6 +204,15 @@
   --nav-py:      12px;
   --nav-px:      20px;
   --content-pad: 20px;
+}
+
+/* Cream chrome remaps the four semantic tokens — any element (nav, header, tabs,
+   sidebar) that carries data-chrome="cream" makes its subtree use ink-on-cream. */
+[data-chrome="cream"] {
+  --fg:             var(--ink);
+  --fg-muted:       var(--ink-muted);
+  --surface:        var(--cream-surface);
+  --surface-border: var(--cream-border);
 }
 
 /* ── Reset */

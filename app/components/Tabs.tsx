@@ -14,7 +14,7 @@ interface Props {
 /** Underlined page-tab strip with optional count pills, on the tab-strip band. */
 export function Tabs({ tabs, active, onChange, style = {} }: Props) {
   return (
-    <div style={{ display: 'flex', borderBottom: '1px solid var(--cream-border)', background: 'var(--bg-tabs)', overflowX: 'auto', ...style }}>
+    <div data-chrome="cream" style={{ display: 'flex', borderBottom: '1px solid var(--cream-border)', background: 'var(--bg-tabs)', overflowX: 'auto', ...style }}>
       {tabs.map(t => {
         const isActive = active === t.key
         return (

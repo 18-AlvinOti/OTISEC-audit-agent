@@ -10,6 +10,15 @@ const config: Config = {
         mono: ['Space Mono', 'monospace'],
         sans: ['Syne', 'sans-serif'],
       },
+      // Named type scale — mirrors the --text-* tokens in app.css so the scale is
+      // enforceable as utilities (text-nano … text-label) instead of arbitrary text-[Npx].
+      fontSize: {
+        nano: '8px',
+        micro: '9px',
+        tiny: '10px',
+        label: '11px',
+        code: '11px',
+      },
       colors: {
         teal: {
           50: '#E1F5EE', 100: '#9FE1CB', 200: '#5DCAA5',
