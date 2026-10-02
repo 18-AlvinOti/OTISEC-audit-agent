@@ -238,7 +238,7 @@ Schema:
   "leads": [{"title":"concise title","codeSmells":"what you found, e.g. missing guard, unsafe arithmetic","description":"1-2 sentences on the trail and what remains unverified"}]
 }
 
-Maximum 4 findings ordered by confidence descending, maximum 4 leads. Every finding's "poc" must contain a concrete runnable test — no proof means it belongs in "leads" instead.`
+Maximum 7 findings ordered by confidence descending, maximum 4 leads. Every finding's "poc" must contain a concrete runnable test — no proof means it belongs in "leads" instead.`
 
 // Google Gemini — preferred provider (large context, no tight TPM ceiling).
 // Defaults to gemini-2.5-flash with fallback to the current 2.5 line. The legacy 1.5 / 2.0
@@ -387,13 +387,13 @@ async function callAnthropic(apiKey: string, userPrompt: string, reasoningEffort
   const authHeaders: Record<string, string> = oauthToken
     ? { Authorization: `Bearer ${oauthToken}`, 'anthropic-beta': 'oauth-2025-04-20' }
     : {
-        'x-api-key': apiKey,
-        // Org-level (unscoped) API keys require a workspace id header. Workspace-scoped keys
-        // don't need it. Set ANTHROPIC_WORKSPACE_ID when using an unscoped key.
-        ...(process.env.ANTHROPIC_WORKSPACE_ID
-          ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID }
-          : {}),
-      }
+      'x-api-key': apiKey,
+      // Org-level (unscoped) API keys require a workspace id header. Workspace-scoped keys
+      // don't need it. Set ANTHROPIC_WORKSPACE_ID when using an unscoped key.
+      ...(process.env.ANTHROPIC_WORKSPACE_ID
+        ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID }
+        : {}),
+    }
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
@@ -673,7 +673,7 @@ function extractObjectsWithRepair(arrayStr: string): any[] {
           // Try repairing individual object
           try {
             results.push(JSON.parse(repairJsonString(objStr)))
-          } catch {}
+          } catch { }
         }
         currentObjectStart = -1
       }
@@ -692,7 +692,7 @@ function extractObjectsWithRepair(arrayStr: string): any[] {
       if (repairedObj && typeof repairedObj === 'object' && (repairedObj.title || repairedObj.sev || repairedObj.id)) {
         results.push(repairedObj)
       }
-    } catch {}
+    } catch { }
   }
 
   return results
@@ -707,7 +707,7 @@ function parseTruncatedJson(rawText: string) {
   // Tier 1: Direct JSON.parse
   try {
     return JSON.parse(cleaned)
-  } catch {}
+  } catch { }
 
   // Tier 2: Global auto-closure repair
   try {
@@ -716,7 +716,7 @@ function parseTruncatedJson(rawText: string) {
     if (parsed && typeof parsed === 'object' && (Array.isArray(parsed.findings) || Array.isArray(parsed.leads))) {
       return parsed
     }
-  } catch {}
+  } catch { }
 
   // Tier 3: Selective extraction with per-object repair
   const result: { findings: any[]; leads: any[] } = { findings: [], leads: [] }
@@ -796,8 +796,8 @@ export async function action({ request }: Route.ActionArgs) {
 
     const soloditContext = soloditRefs.length
       ? `\n\nReal-world precedent from Solodit (50k+ indexed audit-contest findings) — corroborating evidence for patterns you find, not a substitute for your own analysis. Use these to sharpen confidence and cite as prior art where genuinely relevant:\n${soloditRefs
-          .map((r) => `- [${r.severity}] "${r.title}" — ${r.firm} audit of ${r.protocol}${r.tags.length ? ` (tags: ${r.tags.join(', ')})` : ''}`)
-          .join('\n')}`
+        .map((r) => `- [${r.severity}] "${r.title}" — ${r.firm} audit of ${r.protocol}${r.tags.length ? ` (tags: ${r.tags.join(', ')})` : ''}`)
+        .join('\n')}`
       : ''
 
     // Same keyword-detection technique as Solodit corroboration above, but sourced from
@@ -806,8 +806,8 @@ export async function action({ request }: Route.ActionArgs) {
     const immunefiMatches = matchImmunefiCases(truncated, 5)
     const immunefiContext = immunefiMatches.length
       ? `\n\nReal-world precedent from paid Immunefi bug-bounty writeups — corroborating evidence only, cite via the "immunefi" field as "Protocol — pattern (bounty)" ONLY where a match is genuinely substantiated by your own analysis of this code:\n${immunefiMatches
-          .map((c) => `- [${c.severity}, ${c.bounty}] ${c.protocol} — ${c.category}: ${c.pattern}`)
-          .join('\n')}`
+        .map((c) => `- [${c.severity}, ${c.bounty}] ${c.protocol} — ${c.category}: ${c.pattern}`)
+        .join('\n')}`
       : ''
 
     // Real, deterministic static-analysis feature extraction (see app/lib/solidityFeatures.ts)
@@ -821,8 +821,8 @@ export async function action({ request }: Route.ActionArgs) {
     const reportMatches = matchReportCategories(truncated, 4)
     const reportsContext = reportMatches.length
       ? `\n\nReal-world frequency precedent from reports.immunefi.com's Bounty Boost archive (2,148 triaged reports) — corroborating evidence only:\n${reportMatches
-          .map((c) => `- ${c.category} (${c.count}/2148 reports, severity split ${JSON.stringify(c.bySeverity)})${c.examples.length ? ': ' + c.examples.map((e) => `"${e.title}" [${e.sev}] (${e.protocol})`).join('; ') : ''}`)
-          .join('\n')}`
+        .map((c) => `- ${c.category} (${c.count}/2148 reports, severity split ${JSON.stringify(c.bySeverity)})${c.examples.length ? ': ' + c.examples.map((e) => `"${e.title}" [${e.sev}] (${e.protocol})`).join('; ') : ''}`)
+        .join('\n')}`
       : ''
 
     // Same corroboration technique, sourced from immunefi-team/Past-Audit-Competitions — the
@@ -831,8 +831,8 @@ export async function action({ request }: Route.ActionArgs) {
     const compMatches = matchAuditCompetitions(truncated, 4)
     const compContext = compMatches.length
       ? `\n\nReal-world precedent from Immunefi's Past-Audit-Competitions archive (381 findings across Alchemix, ZeroLend, Puffer, DeGate, BadgerDAO eBTC) — corroborating evidence only:\n${compMatches
-          .map((c) => `- ${c.category} (${c.count} findings, severity split ${JSON.stringify(c.bySeverity)})${c.examples.length ? ': ' + c.examples.map((e) => `"${e.title}" [${e.sev}] (${e.protocol} #${e.id})`).join('; ') : ''}`)
-          .join('\n')}`
+        .map((c) => `- ${c.category} (${c.count} findings, severity split ${JSON.stringify(c.bySeverity)})${c.examples.length ? ': ' + c.examples.map((e) => `"${e.title}" [${e.sev}] (${e.protocol} #${e.id})`).join('; ') : ''}`)
+        .join('\n')}`
       : ''
 
     // Same corroboration technique, sourced from sirhashalot/SCV-List — a CVE-like database of
@@ -841,8 +841,8 @@ export async function action({ request }: Route.ActionArgs) {
     const scvMatches = matchScvList(truncated, 4)
     const scvContext = scvMatches.length
       ? `\n\nReal-world precedent from sirhashalot/SCV-List (~155 mainnet-disclosed vulnerabilities, strict on-chain inclusion rule) — corroborating evidence only:\n${scvMatches
-          .map((c) => `- ${c.category} (${c.count}+ mainnet cases)${c.examples.length ? ': ' + c.examples.map((e) => `${e.protocol} — ${e.pattern}`).join('; ') : ''}`)
-          .join('\n')}`
+        .map((c) => `- ${c.category} (${c.count}+ mainnet cases)${c.examples.length ? ': ' + c.examples.map((e) => `${e.protocol} — ${e.pattern}`).join('; ') : ''}`)
+        .join('\n')}`
       : ''
 
     // Targeted DETECTION heuristics (not precedent) from radcipher/auditvault exploit-playbooks
@@ -852,8 +852,8 @@ export async function action({ request }: Route.ActionArgs) {
     const vaultMatches = matchAuditVault(truncated, 5)
     const vaultContext = vaultMatches.length
       ? `\n\nTargeted detection heuristics from audit exploit-playbooks (radcipher/auditvault) — the code below tripped these vuln-class signatures. For each, run the checkpoint against the actual code before concluding; a tripped signature is a lead, not a finding:\n${vaultMatches
-          .map((p) => `- ${p.category}\n    checkpoint: ${p.checkpoint}\n    grep: ${p.grepHints}`)
-          .join('\n')}`
+        .map((p) => `- ${p.category}\n    checkpoint: ${p.checkpoint}\n    grep: ${p.grepHints}`)
+        .join('\n')}`
       : ''
 
     const userPrompt = `Analyze this codebase / smart contract (${filename || 'unknown'}) and return the JSON object only:${readmeContext}\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}${scvContext}${vaultContext}`
