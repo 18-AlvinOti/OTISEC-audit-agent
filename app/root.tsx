@@ -1,6 +1,7 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router'
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation } from 'react-router'
 import type { Route } from './+types/root'
 import './app.css'
+import { absoluteUrl } from './lib/site'
 
 export function meta(_: Route.MetaArgs) {
   return [
@@ -26,11 +27,20 @@ export function links() {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation()
+  const canonical = absoluteUrl(pathname)
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="canonical" href={canonical} />
+        <meta property="og:url" content={canonical} />
+        <meta property="og:site_name" content="OTISEC SENTINEL" />
+        <meta property="og:image" content={absoluteUrl('/otisec-logo.jpg')} />
+        <meta property="og:image:width" content="1248" />
+        <meta property="og:image:height" content="832" />
+        <meta name="twitter:card" content="summary_large_image" />
         <Meta />
         <Links />
       </head>
