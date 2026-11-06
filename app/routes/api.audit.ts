@@ -240,138 +240,6 @@ Schema:
 
 Maximum 7 findings ordered by confidence descending, maximum 4 leads. Every finding's "poc" must contain a concrete runnable test — no proof means it belongs in "leads" instead.`
 
-// Google Gemini — preferred provider (large context, no tight TPM ceiling).
-// Defaults to gemini-2.5-flash with fallback to the current 2.5 line. The legacy 1.5 / 2.0
-// models are retired (404: "model is no longer available"), so they are NOT used as fallbacks.
-async function callGemini(apiKey: string, userPrompt: string) {
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
-  const candidateModels = [...new Set([primaryModel, 'gemini-2.5-flash', 'gemini-2.5-pro'])]
-  const modelsToTry = Array.from(new Set(candidateModels))
-
-  let lastErrText = ''
-  let lastStatus = 500
-
-  for (const model of modelsToTry) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (attempt > 0) {
-        await new Promise((r) => setTimeout(r, 1000 * attempt))
-      }
-
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
-
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': apiKey,
-            },
-            body: JSON.stringify({
-              system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-              generationConfig: {
-                maxOutputTokens: 24000,
-                responseMimeType: 'application/json',
-                responseSchema: {
-                  type: 'OBJECT',
-                  properties: {
-                    protocolType: { type: 'STRING' },
-                    findings: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          sev: { type: 'STRING', enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] },
-                          id: { type: 'STRING' },
-                          title: { type: 'STRING' },
-                          summary: { type: 'STRING' },
-                          rootCause: { type: 'STRING' },
-                          symmetry: { type: 'STRING' },
-                          externalPreconditions: { type: 'STRING' },
-                          internalPreconditions: { type: 'STRING' },
-                          attackPath: { type: 'STRING' },
-                          impact: { type: 'STRING' },
-                          poc: { type: 'STRING' },
-                          mitigation: { type: 'STRING' },
-                          prob: { type: 'ARRAY', items: { type: 'STRING' } },
-                          aave: { type: 'ARRAY', items: { type: 'STRING' } },
-                          swc: { type: 'ARRAY', items: { type: 'STRING' } },
-                          immunefi: { type: 'ARRAY', items: { type: 'STRING' } },
-                          fizzProperties: { type: 'ARRAY', items: { type: 'STRING' } },
-                          confidence: { type: 'INTEGER' },
-                          lens: { type: 'STRING' },
-                        },
-                        required: [
-                          'sev', 'id', 'title', 'summary', 'rootCause',
-                          'externalPreconditions', 'internalPreconditions',
-                          'attackPath', 'impact', 'poc', 'mitigation',
-                          'prob', 'aave', 'swc', 'immunefi', 'fizzProperties', 'confidence', 'lens'
-                        ],
-                      },
-                    },
-                    leads: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          title: { type: 'STRING' },
-                          codeSmells: { type: 'STRING' },
-                          description: { type: 'STRING' },
-                        },
-                        required: ['title', 'codeSmells', 'description'],
-                      },
-                    },
-                  },
-                  required: ['protocolType', 'findings', 'leads'],
-                },
-              },
-            }),
-          }
-        )
-
-        if (!response.ok) {
-          clearTimeout(timeout)
-          lastStatus = response.status
-          lastErrText = await response.text().catch(() => '')
-          if (response.status === 503 || response.status === 429) {
-            continue
-          }
-          break
-        }
-
-        const data = await response.json()
-        clearTimeout(timeout)
-        const text = (
-          data.candidates?.[0]?.content?.parts
-            ?.map((p: { text?: string }) => p.text || '')
-            .join('') || ''
-        )
-        if (text.trim()) {
-          return text
-        }
-      } catch (err) {
-        clearTimeout(timeout)
-        if (err instanceof Error && err.name === 'AbortError') {
-          lastStatus = 504
-          lastErrText = `Gemini (${model}) timed out after 90s`
-        } else {
-          lastStatus = 500
-          lastErrText = err instanceof Error ? err.message : String(err)
-        }
-      }
-    }
-  }
-
-  throw new Response(
-    JSON.stringify({ error: `Gemini API error ${lastStatus}: ${lastErrText.slice(0, 300)}` }),
-    { status: lastStatus, headers: { 'Content-Type': 'application/json' } }
-  )
-}
-
 async function callAnthropic(apiKey: string, userPrompt: string, reasoningEffort: 'medium' | 'high' = 'medium') {
   // Default to Claude Opus 5.5 (the current, most capable Opus). Override via ANTHROPIC_MODEL.
   const model = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5'
@@ -468,6 +336,53 @@ async function callNvidia(apiKey: string, userPrompt: string) {
       const errText = await response.text().catch(() => '')
       throw new Response(
         JSON.stringify({ error: `NVIDIA API error ${response.status} (${model}): ${errText.slice(0, 300)}` }),
+        { status: response.status, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const data = await response.json()
+    return data.choices?.[0]?.message?.content || ''
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+// DeepSeek API (OpenAI-compatible): https://api.deepseek.com/chat/completions
+// Models: deepseek-v4-pro (default, strongest) or deepseek-flash (faster/cheaper).
+// Override via DEEPSEEK_MODEL. Thinking mode is on; the UI's Medium/High effort maps to
+// DeepSeek's reasoning_effort "high"/"max". The answer is in message.content
+// (reasoning goes to message.reasoning_content, which we ignore).
+async function callDeepSeek(apiKey: string, userPrompt: string, reasoningEffort: 'medium' | 'high' = 'medium') {
+  const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro'
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 120_000) // 120 s hard cap (thinking mode is slower)
+
+  try {
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        reasoning_effort: reasoningEffort === 'high' ? 'max' : 'high',
+        // max_tokens covers reasoning + answer in thinking mode.
+        max_tokens: 65536,
+        response_format: { type: 'json_object' },
+      }),
+    })
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      throw new Response(
+        JSON.stringify({ error: `DeepSeek API error ${response.status} (${model}): ${errText.slice(0, 300)}` }),
         { status: response.status, headers: { 'Content-Type': 'application/json' } }
       )
     }
@@ -762,23 +677,21 @@ export async function action({ request }: Route.ActionArgs) {
       ? `\n\n════════════════════════════════════\nREADME & ARCHITECTURE GUIDANCE (Use this protocol documentation to understand system invariants, intended behavior, admin roles, and scope focus):\n════════════════════════════════════\n${readme.trim().slice(0, 20_000)}`
       : ''
 
-    // Accept both the canonical name and the lowercase `gemini` that Vercel's Gemini
-    // connector sets by default, so a mis-cased env var doesn't silently drop the provider.
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.gemini
     const anthropicKey = process.env.ANTHROPIC_API_KEY
     // Subscription OAuth token (draws from Claude Pro/Max limits) is an alternative to the API key.
     const anthropicOAuth = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_OAUTH_TOKEN
     const anthropicEnabled = !!(anthropicKey || anthropicOAuth)
     const nvidiaKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_KEY
+    const deepseekKey = process.env.DEEPSEEK_API_KEY
 
-    if (!geminiKey && !anthropicEnabled && !nvidiaKey) {
+    if (!anthropicEnabled && !deepseekKey && !nvidiaKey) {
       return Response.json(
-        { error: 'No LLM provider configured — set GEMINI_API_KEY, ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN), or NVIDIA_API_KEY in your environment / .env file.' },
+        { error: 'No LLM provider configured — set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN), DEEPSEEK_API_KEY, or NVIDIA_API_KEY in your environment / .env file.' },
         { status: 500 }
       )
     }
 
-    // All three providers support 100k+ context, so we only truncate at 80k chars (~20k tokens)
+    // All providers support 100k+ context, so we only truncate at 80k chars (~20k tokens)
     // to keep prompts within practical limits. Previously this was 14k which silently discarded
     // most of large DeFi contracts, severely degrading audit quality.
     const MAX_CHARS = 80_000
@@ -858,11 +771,11 @@ export async function action({ request }: Route.ActionArgs) {
 
     const userPrompt = `Analyze this codebase / smart contract (${filename || 'unknown'}) and return the JSON object only:${readmeContext}\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}${scvContext}${vaultContext}`
 
-    // Cascade: prioritize Anthropic (Claude Opus 5.5) if configured, then NVIDIA, then Gemini.
+    // Cascade: prioritize Anthropic (Claude Opus 5.5) if configured, then DeepSeek, then NVIDIA.
     const providers: Array<{ name: string; run: () => Promise<string> }> = []
     if (anthropicEnabled) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey || '', userPrompt, reasoningEffort) })
+    if (deepseekKey) providers.push({ name: 'DeepSeek', run: () => callDeepSeek(deepseekKey, userPrompt, reasoningEffort) })
     if (nvidiaKey) providers.push({ name: 'NVIDIA', run: () => callNvidia(nvidiaKey, userPrompt) })
-    if (geminiKey) providers.push({ name: 'Gemini', run: () => callGemini(geminiKey, userPrompt) })
 
     let rawText = ''
     let servedBy = ''
@@ -886,7 +799,7 @@ export async function action({ request }: Route.ActionArgs) {
 
     if (!rawText.trim()) {
       const attempted = providers.map((p) => p.name)
-      const skipped = ['Anthropic', 'NVIDIA', 'Gemini'].filter((n) => !attempted.includes(n))
+      const skipped = ['Anthropic', 'DeepSeek', 'NVIDIA'].filter((n) => !attempted.includes(n))
       return Response.json({
         error: `All ${providers.length} configured LLM provider(s) failed. ${providerErrors.join(' — ')}`,
         providersTried: attempted,
