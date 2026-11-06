@@ -240,123 +240,18 @@ Schema:
 
 Maximum 7 findings ordered by confidence descending, maximum 4 leads. Every finding's "poc" must contain a concrete runnable test — no proof means it belongs in "leads" instead.`
 
-async function callAnthropic(apiKey: string, userPrompt: string, reasoningEffort: 'medium' | 'high' = 'medium') {
-  // Default to Claude Opus 5.5 (the current, most capable Opus). Override via ANTHROPIC_MODEL.
-  const model = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5'
-
-  // Two auth modes:
-  //  1. API key (x-api-key)  — pay-as-you-go API credits.
-  //  2. OAuth bearer token   — draws from a Claude Pro/Max subscription's limits (the same
-  //     mechanism Claude Code uses). Set ANTHROPIC_AUTH_TOKEN to a subscription OAuth access
-  //     token (e.g. from `ant auth print-credentials --access-token`). Requires the oauth beta
-  //     header. NOTE: subscription tokens may be scoped to first-party tools; Anthropic can
-  //     reject third-party use, and access tokens are short-lived (refresh them periodically).
-  const oauthToken = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_OAUTH_TOKEN
-  const authHeaders: Record<string, string> = oauthToken
-    ? { Authorization: `Bearer ${oauthToken}`, 'anthropic-beta': 'oauth-2025-04-20' }
-    : {
-      'x-api-key': apiKey,
-      // Org-level (unscoped) API keys require a workspace id header. Workspace-scoped keys
-      // don't need it. Set ANTHROPIC_WORKSPACE_ID when using an unscoped key.
-      ...(process.env.ANTHROPIC_WORKSPACE_ID
-        ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID }
-        : {}),
-    }
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
-
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        ...authHeaders,
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 16000,
-        system: SYSTEM_PROMPT,
-        // Opus 5.5: thinking is always on (adaptive); depth is controlled by output_config.effort.
-        // effort is GA (no beta header). Medium = default; High = deeper reasoning for the 95% bar.
-        thinking: { type: 'adaptive' },
-        output_config: { effort: reasoningEffort },
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
-    })
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '')
-      throw new Response(
-        JSON.stringify({ error: `Anthropic API error ${response.status} (${model}): ${errText.slice(0, 300)}` }),
-        { status: response.status, headers: { 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const data = await response.json()
-    return data.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
-// NVIDIA NIM API (supports GLM-5.3-flash and other OpenAI-compatible models)
-// Uses NVIDIA's OpenAI-compatible endpoint: https://integrate.api.nvidia.com/v1/chat/completions
-// Default model: z-ai/glm-5.3-flash (confirmed working NIM tag).
-// Override via NVIDIA_MODEL env var (e.g. meta/llama-3.1-70b-instruct).
-async function callNvidia(apiKey: string, userPrompt: string) {
-  const model = process.env.NVIDIA_MODEL || process.env.GLM_MODEL || 'z-ai/glm-5.3-flash'
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 90_000) // 90 s hard cap
-
-  try {
-    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 16384,
-        response_format: { type: 'json_object' },
-      }),
-    })
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '')
-      throw new Response(
-        JSON.stringify({ error: `NVIDIA API error ${response.status} (${model}): ${errText.slice(0, 300)}` }),
-        { status: response.status, headers: { 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const data = await response.json()
-    return data.choices?.[0]?.message?.content || ''
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
 // DeepSeek API (OpenAI-compatible): https://api.deepseek.com/chat/completions
 // Models: deepseek-v4-pro (default, strongest) or deepseek-flash (faster/cheaper).
 // Override via DEEPSEEK_MODEL. Thinking mode is on; the UI's Medium/High effort maps to
 // DeepSeek's reasoning_effort "high"/"max". The answer is in message.content
 // (reasoning goes to message.reasoning_content, which we ignore).
+const DEEPSEEK_TIMEOUT_MS = 280_000 // just under the 300 s Vercel function limit set below
+
 async function callDeepSeek(apiKey: string, userPrompt: string, reasoningEffort: 'medium' | 'high' = 'medium') {
   const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro'
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 120_000) // 120 s hard cap (thinking mode is slower)
+  const timeout = setTimeout(() => controller.abort(), DEEPSEEK_TIMEOUT_MS)
 
   try {
     const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -659,6 +554,10 @@ function parseTruncatedJson(rawText: string) {
   throw new Error(`JSON parse failed. Raw snippet: ${cleaned.slice(0, 300)}`)
 }
 
+// Vercel function limit for this route (Hobby max). DeepSeek thinking mode on large contracts
+// can take a few minutes.
+export const config = { maxDuration: 300 }
+
 export async function action({ request }: Route.ActionArgs) {
   await requireAuthApi(request)
 
@@ -669,7 +568,7 @@ export async function action({ request }: Route.ActionArgs) {
       return Response.json({ error: 'No code provided' }, { status: 400 })
     }
 
-    // Reasoning effort for Claude Opus 5.5 — the UI exposes Medium (faster/cheaper) and
+    // Reasoning effort — the UI exposes Medium (faster/cheaper) and
     // High (deeper reasoning). Anything else falls back to the model default (medium).
     const reasoningEffort: 'medium' | 'high' = effort === 'high' ? 'high' : 'medium'
 
@@ -677,21 +576,16 @@ export async function action({ request }: Route.ActionArgs) {
       ? `\n\n════════════════════════════════════\nREADME & ARCHITECTURE GUIDANCE (Use this protocol documentation to understand system invariants, intended behavior, admin roles, and scope focus):\n════════════════════════════════════\n${readme.trim().slice(0, 20_000)}`
       : ''
 
-    const anthropicKey = process.env.ANTHROPIC_API_KEY
-    // Subscription OAuth token (draws from Claude Pro/Max limits) is an alternative to the API key.
-    const anthropicOAuth = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_OAUTH_TOKEN
-    const anthropicEnabled = !!(anthropicKey || anthropicOAuth)
-    const nvidiaKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_KEY
     const deepseekKey = process.env.DEEPSEEK_API_KEY
 
-    if (!anthropicEnabled && !deepseekKey && !nvidiaKey) {
+    if (!deepseekKey) {
       return Response.json(
-        { error: 'No LLM provider configured — set DEEPSEEK_API_KEY, ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN), or NVIDIA_API_KEY in your environment / .env file.' },
+        { error: 'DEEPSEEK_API_KEY is not set — add it in Vercel → Settings → Environment Variables, then redeploy.' },
         { status: 500 }
       )
     }
 
-    // All providers support 100k+ context, so we only truncate at 80k chars (~20k tokens)
+    // DeepSeek supports 100k+ context, so we only truncate at 80k chars (~20k tokens)
     // to keep prompts within practical limits. Previously this was 14k which silently discarded
     // most of large DeFi contracts, severely degrading audit quality.
     const MAX_CHARS = 80_000
@@ -771,40 +665,19 @@ export async function action({ request }: Route.ActionArgs) {
 
     const userPrompt = `Analyze this codebase / smart contract (${filename || 'unknown'}) and return the JSON object only:${readmeContext}\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}${scvContext}${vaultContext}`
 
-    // Cascade: DeepSeek first if configured, then Anthropic (Claude Opus 5.5), then NVIDIA.
-    const providers: Array<{ name: string; run: () => Promise<string> }> = []
-    if (deepseekKey) providers.push({ name: 'DeepSeek', run: () => callDeepSeek(deepseekKey, userPrompt, reasoningEffort) })
-    if (anthropicEnabled) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey || '', userPrompt, reasoningEffort) })
-    if (nvidiaKey) providers.push({ name: 'NVIDIA', run: () => callNvidia(nvidiaKey, userPrompt) })
-
+    // DeepSeek is the only provider.
     let rawText = ''
-    let servedBy = ''
-    // Collect EVERY provider's failure (not just the last) so a silent primary-provider
-    // failure — e.g. Anthropic/Opus 400/401 — is visible instead of being masked by the
-    // last provider's error in the cascade.
-    const providerErrors: string[] = []
-    for (const provider of providers) {
-      try {
-        const out = await provider.run()
-        if (out.trim()) { rawText = out; servedBy = provider.name; break }
-        providerErrors.push(`${provider.name}: returned an empty response`)
-      } catch (err) {
-        let detail: string
-        if (err instanceof Response) detail = (await err.text().catch(() => '')) || `HTTP ${err.status}`
-        else if (err instanceof Error) detail = err.message
-        else detail = String(err)
-        providerErrors.push(`${provider.name}: ${detail.slice(0, 300)}`)
-      }
+    try {
+      rawText = await callDeepSeek(deepseekKey, userPrompt, reasoningEffort)
+    } catch (err) {
+      let detail: string
+      if (err instanceof Response) detail = (await err.text().catch(() => '')) || `HTTP ${err.status}`
+      else if (err instanceof Error) detail = err.name === 'AbortError' ? `DeepSeek timed out after ${DEEPSEEK_TIMEOUT_MS / 1000}s` : err.message
+      else detail = String(err)
+      return Response.json({ error: `DeepSeek request failed: ${detail.slice(0, 400)}` }, { status: 502 })
     }
-
     if (!rawText.trim()) {
-      const attempted = providers.map((p) => p.name)
-      const skipped = ['DeepSeek', 'Anthropic', 'NVIDIA'].filter((n) => !attempted.includes(n))
-      return Response.json({
-        error: `All ${providers.length} configured LLM provider(s) failed. ${providerErrors.join(' — ')}`,
-        providersTried: attempted,
-        providersNotConfigured: skipped,
-      }, { status: 502 })
+      return Response.json({ error: 'DeepSeek returned an empty response (the output may have hit the token limit) — try again or switch effort to Medium.' }, { status: 502 })
     }
 
     // Strip markdown fences if present
@@ -891,9 +764,8 @@ export async function action({ request }: Route.ActionArgs) {
       leads: Array.isArray(leads) ? leads : [],
       soloditRefs,
       source: 'live',
-      // Which provider actually served this audit (Anthropic = Claude Opus 5.5 when it wins the cascade).
-      servedBy,
-      model: servedBy === 'Anthropic' ? (process.env.ANTHROPIC_MODEL || 'claude-opus-5-5') : undefined,
+      servedBy: 'DeepSeek',
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
     })
   } catch (err: unknown) {
     if (err instanceof Response) return err
