@@ -750,7 +750,7 @@ export default function Home() {
                         ))}
                       </div>
                       <span style={{ fontFamily: 'Space Mono, monospace', fontSize: '8px', color: 'rgba(239,235,221,0.25)' }}>
-                        {effort === 'high' ? 'Deeper reasoning · targets 95% confidence' : 'Faster · lower cost'}
+                        {effort === 'high' ? 'DeepSeek V4 Pro · deeper reasoning · up to ~5 min' : 'DeepSeek Flash · faster · lower cost'}
                       </span>
                     </div>
                     <Button

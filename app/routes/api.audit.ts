@@ -240,13 +240,6 @@ Schema:
 
 Maximum 7 findings ordered by confidence descending, maximum 4 leads. Every finding's "poc" must contain a concrete runnable test — no proof means it belongs in "leads" instead.`
 
-// DeepSeek API (OpenAI-compatible): https://api.deepseek.com/chat/completions
-// Models: deepseek-v4-pro (default, strongest) or deepseek-flash (faster/cheaper).
-// Override via DEEPSEEK_MODEL. Thinking mode is on; the UI's Medium/High effort maps to
-// DeepSeek's reasoning_effort "high"/"max". The answer is in message.content
-// (reasoning goes to message.reasoning_content, which we ignore).
-const DEEPSEEK_TIMEOUT_MS = 280_000 // just under the 300 s Vercel function limit set below
-
 // Accept DEEPSEEK_API_KEY, or any env var with "deepseek" in its name (Vercel integrations and
 // hand-typed names vary: `deepseek`, `DEEPSEEK_KEY`, `DeepSeek_API_KEY`…). Values are trimmed
 // because a pasted key often carries a trailing newline/space, which the API rejects.
@@ -260,11 +253,24 @@ function resolveDeepSeekKey(): { key: string; candidates: string[] } {
   return { key: '', candidates }
 }
 
+// DeepSeek API (OpenAI-compatible): https://api.deepseek.com/chat/completions
+// Effort → model: Medium = deepseek-flash (fast), High = deepseek-v4-pro (strongest).
+// DEEPSEEK_MODEL, when set, forces one model for both. Thinking mode stays on with a
+// moderate reasoning_effort so the whole call fits Vercel's 300 s function limit.
+// The response is streamed: if the time budget runs out after the JSON answer has started,
+// the partial answer is returned and repaired downstream by parseTruncatedJson.
+const DEEPSEEK_TIMEOUT_MS = 270_000 // leaves headroom under the 300 s maxDuration below
+
+function deepSeekModel(reasoningEffort: 'medium' | 'high') {
+  return process.env.DEEPSEEK_MODEL?.trim() || (reasoningEffort === 'high' ? 'deepseek-v4-pro' : 'deepseek-flash')
+}
+
 async function callDeepSeek(apiKey: string, userPrompt: string, reasoningEffort: 'medium' | 'high' = 'medium') {
-  const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro'
+  const model = deepSeekModel(reasoningEffort)
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), DEEPSEEK_TIMEOUT_MS)
+  let content = ''
 
   try {
     const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -280,14 +286,15 @@ async function callDeepSeek(apiKey: string, userPrompt: string, reasoningEffort:
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
         ],
-        reasoning_effort: reasoningEffort === 'high' ? 'max' : 'high',
+        reasoning_effort: reasoningEffort === 'high' ? 'high' : 'low',
         // max_tokens covers reasoning + answer in thinking mode.
-        max_tokens: 65536,
+        max_tokens: 32768,
         response_format: { type: 'json_object' },
+        stream: true,
       }),
     })
 
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       const errText = await response.text().catch(() => '')
       throw new Response(
         JSON.stringify({ error: `DeepSeek API error ${response.status} (${model}): ${errText.slice(0, 300)}` }),
@@ -295,8 +302,36 @@ async function callDeepSeek(apiKey: string, userPrompt: string, reasoningEffort:
       )
     }
 
-    const data = await response.json()
-    return data.choices?.[0]?.message?.content || ''
+    // Server-sent events: `data: {json}` lines, `: keep-alive` comments, final `data: [DONE]`.
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+    let buf = ''
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buf += value
+      let nl: number
+      while ((nl = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, nl).trim()
+        buf = buf.slice(nl + 1)
+        if (!line.startsWith('data:')) continue
+        const data = line.slice(5).trim()
+        if (data === '[DONE]') return content
+        try {
+          const delta = JSON.parse(data).choices?.[0]?.delta
+          if (typeof delta?.content === 'string') content += delta.content
+        } catch { /* ignore a malformed chunk */ }
+      }
+    }
+    return content
+  } catch (err) {
+    if (controller.signal.aborted) {
+      if (content.trim()) return content // partial JSON answer — repaired by parseTruncatedJson
+      throw new Error(
+        `DeepSeek (${model}) was still reasoning after ${DEEPSEEK_TIMEOUT_MS / 1000}s and had not started its answer — ` +
+        `try Medium effort or a smaller file`
+      )
+    }
+    throw err
   } finally {
     clearTimeout(timeout)
   }
@@ -782,7 +817,7 @@ export async function action({ request }: Route.ActionArgs) {
       soloditRefs,
       source: 'live',
       servedBy: 'DeepSeek',
-      model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
+      model: deepSeekModel(reasoningEffort),
     })
   } catch (err: unknown) {
     if (err instanceof Response) return err
