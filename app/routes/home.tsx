@@ -728,7 +728,7 @@ export default function Home() {
                   <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                       <span style={{ fontFamily: 'Space Mono, monospace', fontSize: '9px', color: 'rgba(239,235,221,0.35)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>
-                        Reasoning Effort · Opus 5.5
+                        Reasoning Effort · DeepSeek
                       </span>
                       <div style={{ display: 'inline-flex', border: '1px solid rgba(46,158,130,0.30)', borderRadius: '8px', overflow: 'hidden' }}>
                         {(['medium', 'high'] as const).map(lvl => (
