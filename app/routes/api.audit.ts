@@ -247,6 +247,19 @@ Maximum 7 findings ordered by confidence descending, maximum 4 leads. Every find
 // (reasoning goes to message.reasoning_content, which we ignore).
 const DEEPSEEK_TIMEOUT_MS = 280_000 // just under the 300 s Vercel function limit set below
 
+// Accept DEEPSEEK_API_KEY, or any env var with "deepseek" in its name (Vercel integrations and
+// hand-typed names vary: `deepseek`, `DEEPSEEK_KEY`, `DeepSeek_API_KEY`…). Values are trimmed
+// because a pasted key often carries a trailing newline/space, which the API rejects.
+function resolveDeepSeekKey(): { key: string; candidates: string[] } {
+  const candidates = Object.keys(process.env).filter((n) => /deep[\s_-]?seek/i.test(n) && !/model/i.test(n))
+  const ordered = ['DEEPSEEK_API_KEY', ...candidates.filter((n) => n !== 'DEEPSEEK_API_KEY')]
+  for (const name of ordered) {
+    const v = process.env[name]?.trim()
+    if (v) return { key: v, candidates }
+  }
+  return { key: '', candidates }
+}
+
 async function callDeepSeek(apiKey: string, userPrompt: string, reasoningEffort: 'medium' | 'high' = 'medium') {
   const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro'
 
@@ -576,11 +589,15 @@ export async function action({ request }: Route.ActionArgs) {
       ? `\n\n════════════════════════════════════\nREADME & ARCHITECTURE GUIDANCE (Use this protocol documentation to understand system invariants, intended behavior, admin roles, and scope focus):\n════════════════════════════════════\n${readme.trim().slice(0, 20_000)}`
       : ''
 
-    const deepseekKey = process.env.DEEPSEEK_API_KEY
+    const { key: deepseekKey, candidates } = resolveDeepSeekKey()
 
     if (!deepseekKey) {
+      // Names only (never values), so the cause is visible without opening Vercel.
+      const seen = candidates.length ? `found ${candidates.join(', ')} but none has a value` : 'no variable with "deepseek" in its name is visible'
       return Response.json(
-        { error: 'DEEPSEEK_API_KEY is not set — add it in Vercel → Settings → Environment Variables, then redeploy.' },
+        {
+          error: `DEEPSEEK_API_KEY is not set for this deployment (${seen}; environment: ${process.env.VERCEL_ENV || 'unknown'}). In Vercel → otisec-audit-agent → Settings → Environment Variables, add DEEPSEEK_API_KEY with "Production" ticked, then redeploy.`,
+        },
         { status: 500 }
       )
     }
