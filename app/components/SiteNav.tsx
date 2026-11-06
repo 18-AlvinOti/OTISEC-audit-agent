@@ -5,6 +5,7 @@ export const SITE_LINKS = [
   { label: 'Home', href: '/welcome' },
   { label: 'How It Works', href: '/welcome#how-it-works' },
   { label: 'New Audit', href: '/' },
+  { label: 'Targets', href: '/target' },
   { label: 'Results', href: '/#results' },
   { label: 'Past Reports', href: '/reports' },
   { label: 'About Us', href: '/about' },
