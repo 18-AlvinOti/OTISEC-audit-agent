@@ -686,7 +686,7 @@ export async function action({ request }: Route.ActionArgs) {
 
     if (!anthropicEnabled && !deepseekKey && !nvidiaKey) {
       return Response.json(
-        { error: 'No LLM provider configured — set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN), DEEPSEEK_API_KEY, or NVIDIA_API_KEY in your environment / .env file.' },
+        { error: 'No LLM provider configured — set DEEPSEEK_API_KEY, ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN), or NVIDIA_API_KEY in your environment / .env file.' },
         { status: 500 }
       )
     }
@@ -771,10 +771,10 @@ export async function action({ request }: Route.ActionArgs) {
 
     const userPrompt = `Analyze this codebase / smart contract (${filename || 'unknown'}) and return the JSON object only:${readmeContext}\n\n${truncated}${featureReport}${soloditContext}${immunefiContext}${reportsContext}${compContext}${scvContext}${vaultContext}`
 
-    // Cascade: prioritize Anthropic (Claude Opus 5.5) if configured, then DeepSeek, then NVIDIA.
+    // Cascade: DeepSeek first if configured, then Anthropic (Claude Opus 5.5), then NVIDIA.
     const providers: Array<{ name: string; run: () => Promise<string> }> = []
-    if (anthropicEnabled) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey || '', userPrompt, reasoningEffort) })
     if (deepseekKey) providers.push({ name: 'DeepSeek', run: () => callDeepSeek(deepseekKey, userPrompt, reasoningEffort) })
+    if (anthropicEnabled) providers.push({ name: 'Anthropic', run: () => callAnthropic(anthropicKey || '', userPrompt, reasoningEffort) })
     if (nvidiaKey) providers.push({ name: 'NVIDIA', run: () => callNvidia(nvidiaKey, userPrompt) })
 
     let rawText = ''
@@ -799,7 +799,7 @@ export async function action({ request }: Route.ActionArgs) {
 
     if (!rawText.trim()) {
       const attempted = providers.map((p) => p.name)
-      const skipped = ['Anthropic', 'DeepSeek', 'NVIDIA'].filter((n) => !attempted.includes(n))
+      const skipped = ['DeepSeek', 'Anthropic', 'NVIDIA'].filter((n) => !attempted.includes(n))
       return Response.json({
         error: `All ${providers.length} configured LLM provider(s) failed. ${providerErrors.join(' — ')}`,
         providersTried: attempted,
